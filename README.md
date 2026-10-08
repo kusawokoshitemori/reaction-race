@@ -34,7 +34,7 @@ React・Viteなどの具体的な依存バージョンは01-2でpackage.jsonと�
 Notion「01. 開発環境の構築」の子タスク順に進める。
 
 - [x] 01-1 リポジトリ・実行環境の配置を決める
-- [ ] 01-2 React＋TypeScript＋Viteを起動する
+- [x] 01-2 React＋TypeScript＋Viteを起動する
 - [ ] 01-3 Goサーバーを起動する
 - [ ] 01-4 ローカルPostgreSQLを用意する
 - [ ] 01-5 設定サンプルと起動手順を整える
