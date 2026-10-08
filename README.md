@@ -192,7 +192,6 @@ Compose設定の確認はリポジトリ直下で `docker compose config --quiet
 ## 開発規約
 
 実装・テスト・レビューの方針は [AGENTS.md](AGENTS.md) を参照。
-`CLAUDE.md` も同じファイルを参照する。
 フロントの `npm run check` はフォーマット・Lint・テスト・ビルドを実行する。
 自動修正は `npm run format:fix`、テストの継続実行は `npm run test:watch`。
 Go のテストは一時的なループバックポートを使用し、DB は不要。
