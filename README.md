@@ -154,15 +154,16 @@ DBのデータはDockerの名前付きボリューム `reaction-race_postgres_da
 
 ```sh
 cd frontend
-npm run build
-npm run lint
+npm run check
 ```
 
 Go（別のターミナルでリポジトリ直下から）：
 
 ```sh
 cd backend
+test -z "$(gofmt -l .)"
 go vet ./...
+go test -race ./...
 go build -o bin/server ./cmd/server
 ```
 
@@ -187,6 +188,14 @@ Compose設定の確認はリポジトリ直下で `docker compose config --quiet
 - [x] 01-5 設定サンプル・秘密情報の除外・起動手順の確認
 
 認証、WebSocket、ゲーム処理、テーブル設計、公開環境は後続タスクで扱う。
+
+## 開発規約
+
+実装・テスト・レビューの方針は [AGENTS.md](AGENTS.md) を参照。
+`CLAUDE.md` も同じファイルを参照する。
+フロントの `npm run check` はフォーマット・Lint・テスト・ビルドを実行する。
+自動修正は `npm run format:fix`、テストの継続実行は `npm run test:watch`。
+Go のテストは一時的なループバックポートを使用し、DB は不要。
 
 ## 参照
 

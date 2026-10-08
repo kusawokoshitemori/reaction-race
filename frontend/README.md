@@ -10,9 +10,10 @@ React + TypeScript + Vite。初期画面は公式テンプレートのまま。
 ```sh
 npm ci
 npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
-npm run build
-npm run lint
+npm run check
+npm run format:fix
+npm run test:watch
 ```
 
-依存はpackage-lock.jsonで固定。現段階のLintはViteテンプレート標準のOxlintを使用する。
+依存はpackage-lock.jsonで固定。LintはOxlint（警告0件）、整形はPrettier、テストはVitest + React Testing Libraryを使用する。
 UI・状態管理ライブラリは必要になった段階で検討する。
