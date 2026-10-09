@@ -1,7 +1,9 @@
 # フロントエンド
 
-React + TypeScript + Vite。画面はタイトル「Reaction Race」のみを表示する最小構成。
-画面遷移やゲーム用UIはタスク02以降で実装する。
+React + TypeScript + Vite。ログインまたはゲスト選択後、タイトル・ゲーム・結果・ランキングへ移動できます。
+認証と試合は仮動作です。画面デザイン・実処理は後続タスクで実装します。
+
+[画面一覧・遷移条件](../docs/screen-navigation.md)
 
 セットアップ・起動・停止手順は [ルートのREADME](../README.md) を参照。
 
