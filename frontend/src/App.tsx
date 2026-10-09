@@ -1,5 +1,258 @@
-function App() {
-  return <h1>Reaction Race</h1>
+import { useEffect, useRef, useState } from 'react'
+import { initialSession, resolveRoute, transition } from './navigation'
+import type { Action, Outcome, Route, Session } from './navigation'
+import AppHeader from './components/AppHeader'
+import './App.css'
+
+const labels: Record<Route, string> = {
+  '/': 'Reaction Race',
+  '/game': 'ゲーム',
+  '/result': '試合結果',
+  '/auth': 'ログイン',
+  '/history': '戦績',
+  '/ranking': 'ランキング',
+}
+const outcomes: Record<Outcome, string> = {
+  success: '成功：12位 / 100人・反応時間 240 ms',
+  flying: 'フライング：順位・記録なし',
+  'no-record': '未入力：記録なし',
+}
+function log(event: string, details: Record<string, unknown>) {
+  console.info('[navigation]', { event, ...details })
 }
 
-export default App
+export default function App() {
+  const sessionRef = useRef<Session>({ ...initialSession })
+  const [session, setSession] = useState<Session>({ ...initialSession })
+  const [route, setRoute] = useState<Route>('/auth')
+  const [notice, setNotice] = useState('')
+  const heading = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    function sync() {
+      let next = sessionRef.current
+      const resolved = resolveRoute(window.location.hash, next)
+      if (resolved.route !== '/game' && next.phase) {
+        next = transition(next, 'leave')
+        sessionRef.current = next
+        setSession(next)
+        log('match-left', { reason: 'navigation' })
+      }
+      if (window.location.hash !== `#${resolved.route}`) {
+        window.history.replaceState(null, '', `#${resolved.route}`)
+      }
+      setRoute(resolved.route)
+      setNotice(resolved.reason ?? '')
+      log('route', {
+        to: resolved.route,
+        reason: resolved.reason ?? 'navigation',
+      })
+    }
+    sync()
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [])
+
+  useEffect(() => {
+    document.title =
+      route === '/' ? 'Reaction Race' : `${labels[route]} | Reaction Race`
+    heading.current?.focus()
+  }, [route])
+
+  function act(action: Action, destination?: Route) {
+    const next = transition(sessionRef.current, action)
+    sessionRef.current = next
+    setSession(next)
+    log('action', { action, from: session.phase, to: next.phase })
+    if (destination) window.location.hash = destination
+  }
+
+  return (
+    <div className="shell">
+      <AppHeader
+        signedIn={session.signedIn}
+        showBack={session.entered && route !== '/'}
+        onBack={() => act('leave', '/')}
+      />
+      <main>
+        <div className="page-heading">
+          <h1 ref={heading} tabIndex={-1}>
+            {labels[route]}
+          </h1>
+        </div>
+        {notice && (
+          <p role="status" className="notice">
+            {notice}
+          </p>
+        )}
+        {route === '/' && (
+          <section>
+            <p>100人で反応の速さを競うゲーム。ゲストのまま参加できます。</p>
+            <div className="rating" aria-label="自分のレート">
+              <span>あなたのレート</span>
+              <strong>{session.signedIn ? '1,500' : 'レートなし'}</strong>
+              <small>
+                {session.signedIn ? '仮のレート' : 'ゲストでプレイ中'}
+              </small>
+            </div>
+            <div className="title-actions">
+              <button onClick={() => act('join', '/game')}>ゲーム開始</button>
+              <a className="button secondary" href="#/ranking">
+                ランキング
+              </a>
+            </div>
+          </section>
+        )}
+        {route === '/game' && (
+          <section aria-live="polite">
+            {session.phase === 'waiting' && (
+              <>
+                <h2>参加者を募集中</h2>
+                <p>仮の待機室です。不足人数はボットで補う想定です。</p>
+                <button onClick={() => act('start')}>
+                  募集を終了して開始（仮）
+                </button>
+              </>
+            )}
+            {session.phase === 'ready' && (
+              <>
+                <h2>合図を待ってください</h2>
+                <button onClick={() => act('tap')}>押す（フライング）</button>
+                <button onClick={() => act('signal')}>合図を出す（仮）</button>
+              </>
+            )}
+            {session.phase === 'signal' && (
+              <>
+                <h2>今だ！</h2>
+                <button onClick={() => act('tap')}>押す</button>
+                <button onClick={() => act('timeout')}>
+                  3秒経過・未入力（仮）
+                </button>
+              </>
+            )}
+            {session.phase === 'submitted' && (
+              <>
+                <h2>入力を受け付けました</h2>
+                <p>
+                  {session.outcome === 'flying'
+                    ? 'フライングです。'
+                    : '他の参加者の入力を待っています。'}
+                </p>
+                <button onClick={() => act('settle')}>
+                  入力受付を終了（仮）
+                </button>
+              </>
+            )}
+            {session.phase === 'settling' && (
+              <>
+                <h2>結果を確定中</h2>
+                <p>遅延補正・順位計算・保存を行う想定です。</p>
+                <button onClick={() => act('finish', '/result')}>
+                  確定結果を表示（仮）
+                </button>
+              </>
+            )}
+          </section>
+        )}
+        {route === '/result' && session.result && (
+          <section>
+            <h2>あなたの仮結果</h2>
+            <p>{outcomes[session.result]}</p>
+            <p>
+              {session.signedIn
+                ? `仮レート変動：${session.result === 'success' ? '+6' : '-7'}`
+                : 'ゲストにはレートがありません。'}
+            </p>
+            <button onClick={() => act('join', '/game')}>再戦</button>
+            <a className="button secondary" href="#/">
+              タイトルに戻る
+            </a>
+          </section>
+        )}
+        {route === '/auth' && (
+          <section>
+            {session.signedIn ? (
+              <>
+                <p>デモプレイヤーとしてログイン中です。</p>
+                <p>
+                  <a href="#/history">戦績を見る</a>
+                </p>
+                <button onClick={() => act('logout', '/auth')}>
+                  ログアウト
+                </button>
+                <a className="button secondary" href="#/">
+                  タイトルに戻る
+                </a>
+              </>
+            ) : (
+              <>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    event.currentTarget.reset()
+                    act('login', '/')
+                  }}
+                >
+                  <p id="auth-note">
+                    画面確認用です。実際の認証は行いません。入力する場合はダミー情報を使ってください。
+                  </p>
+                  <label>
+                    メールアドレス
+                    <input
+                      type="email"
+                      name="email"
+                      autoComplete="off"
+                      placeholder="demo@example.com"
+                      aria-describedby="auth-note"
+                    />
+                  </label>
+                  <label>
+                    パスワード
+                    <input
+                      type="password"
+                      name="password"
+                      autoComplete="off"
+                      placeholder="ダミーパスワード"
+                      aria-describedby="auth-note"
+                    />
+                  </label>
+                  <button type="submit">ログイン</button>
+                </form>
+                <button className="secondary" onClick={() => act('guest', '/')}>
+                  ゲストで続ける
+                </button>
+              </>
+            )}
+          </section>
+        )}
+        {route === '/history' && (
+          <section>
+            <p>デモプレイヤーの仮戦績</p>
+            <ul>
+              <li>サンプル試合：12位・240 ms・レート +6</li>
+              {session.result && (
+                <li>今回の仮試合：{outcomes[session.result]}</li>
+              )}
+            </ul>
+            {session.result && <a href="#/result">今回の試合結果へ</a>}
+          </section>
+        )}
+        {route === '/ranking' && (
+          <section>
+            <p>総合レートランキング（固定の仮データ）</p>
+            <ol>
+              <li>プレイヤーA：1,600</li>
+              <li>プレイヤーB：1,550</li>
+              <li>プレイヤーC：1,500</li>
+            </ol>
+          </section>
+        )}
+        {route === '/history' && (
+          <p className="back">
+            <a href="#/">タイトルに戻る</a>
+          </p>
+        )}
+      </main>
+    </div>
+  )
+}
