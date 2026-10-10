@@ -4,6 +4,7 @@ import type { Action, Outcome, Route, Session } from './navigation'
 import AppHeader from './components/AppHeader'
 import AppFooter from './components/AppFooter'
 import HelpContent from './components/HelpContent'
+import RatingPanel from './components/RatingPanel'
 import './App.css'
 
 const labels: Record<Route, string> = {
@@ -76,7 +77,9 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
+    <div
+      className={`shell${route === '/' && !helpOpen ? ' start-screen' : ''}`}
+    >
       <a
         className="skip-link"
         href="#main-content"
@@ -105,8 +108,17 @@ export default function App() {
         )}
         <div className="page-content" hidden={helpOpen}>
           <div className="page-heading">
+            {route === '/' && (
+              <p className="start-kicker">100 PLAYERS / ONE SIGNAL</p>
+            )}
             <h1 ref={heading} tabIndex={-1}>
-              {labels[route]}
+              {route === '/' ? (
+                <>
+                  REACTION <span>RACE</span>
+                </>
+              ) : (
+                labels[route]
+              )}
             </h1>
           </div>
           {notice && (
@@ -115,21 +127,20 @@ export default function App() {
             </p>
           )}
           {route === '/' && (
-            <section>
-              <p>100人で反応の速さを競うゲーム。ゲストのまま参加できます。</p>
-              <div className="rating" aria-label="自分のレート">
-                <span>あなたのレート</span>
-                <strong>{session.signedIn ? '1,500' : 'レートなし'}</strong>
-                <small>
-                  {session.signedIn ? '仮のレート' : 'ゲストでプレイ中'}
-                </small>
-              </div>
-              <div className="title-actions">
-                <button onClick={() => act('join', '/game')}>ゲーム開始</button>
-                <a className="button secondary" href="#/ranking">
-                  ランキング
-                </a>
-              </div>
+            <section className="start-actions" aria-label="ゲームへの参加">
+              <button
+                className="start-button"
+                onClick={() => act('join', '/game')}
+              >
+                ゲーム開始 <span aria-hidden="true">→</span>
+              </button>
+              <RatingPanel
+                rating={session.signedIn ? 1500 : null}
+                matches={12}
+              />
+              {session.signedIn && (
+                <p className="rating-demo-note">レート・試合数は仮データです</p>
+              )}
             </section>
           )}
           {route === '/game' && (
@@ -290,6 +301,7 @@ export default function App() {
       </main>
       <AppFooter
         helpOpen={helpOpen}
+        showRanking={route === '/' && !helpOpen}
         onToggleHelp={() => setHelpOpen((value) => !value)}
       />
     </div>
