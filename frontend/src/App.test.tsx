@@ -70,15 +70,14 @@ for (const outcome of ['success', 'flying', 'no-record']) {
     if (outcome !== 'no-record') await click('入力受付を終了（仮）')
     await click('確定結果を表示（仮）')
     await screen.findByRole('heading', { name: '試合結果' })
-    expect(
-      screen.getByText(
-        outcome === 'success'
-          ? /成功：12位/
-          : outcome === 'flying'
-            ? /フライング：順位/
-            : /未入力：記録なし/,
-      ),
-    ).toBeTruthy()
+    const summary = screen.getByRole('region', { name: 'あなたの結果' })
+    expect(summary.textContent).toContain(
+      outcome === 'success'
+        ? '成功'
+        : outcome === 'flying'
+          ? 'フライング'
+          : '未入力',
+    )
     await click('再戦')
     await screen.findByRole('heading', { name: '参加者を募集中' })
     await click('タイトルに戻る')

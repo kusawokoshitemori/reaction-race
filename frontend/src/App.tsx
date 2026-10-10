@@ -6,6 +6,8 @@ import AppFooter from './components/AppFooter'
 import HelpContent from './components/HelpContent'
 import RatingPanel from './components/RatingPanel'
 import RankingPanel from './components/RankingPanel'
+import ResultPanel from './components/ResultPanel'
+import { createDemoResult } from './result'
 import { demoRanking } from './ranking'
 import './App.css'
 
@@ -85,10 +87,17 @@ export default function App() {
   }, [route, helpOpen])
 
   function act(action: Action, destination?: Route) {
-    const next = transition(sessionRef.current, action)
+    const previous = sessionRef.current
+    const next = transition(previous, action)
     sessionRef.current = next
     setSession(next)
     log('action', { action, from: session.phase, to: next.phase })
+    if (action === 'finish' && next !== previous && next.result) {
+      log('result-ready', {
+        source: 'demo',
+        ...createDemoResult(next.result, next.signedIn),
+      })
+    }
     if (destination) window.location.hash = destination
   }
 
@@ -224,19 +233,10 @@ export default function App() {
             </section>
           )}
           {route === '/result' && session.result && (
-            <section>
-              <h2>あなたの仮結果</h2>
-              <p>{outcomes[session.result]}</p>
-              <p>
-                {session.signedIn
-                  ? `仮レート変動：${session.result === 'success' ? '+6' : '-7'}`
-                  : 'ゲストにはレートがありません。'}
-              </p>
-              <button onClick={() => act('join', '/game')}>再戦</button>
-              <a className="button secondary" href="#/">
-                タイトルに戻る
-              </a>
-            </section>
+            <ResultPanel
+              result={createDemoResult(session.result, session.signedIn)}
+              onRematch={() => act('join', '/game')}
+            />
           )}
           {route === '/auth' && (
             <section>
