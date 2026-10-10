@@ -2,9 +2,17 @@ import { useEffect, useState } from 'react'
 
 const soundKey = 'reaction-race:sound-enabled'
 
-type AppFooterProps = { helpOpen: boolean; onToggleHelp: () => void }
+type AppFooterProps = {
+  helpOpen: boolean
+  showRanking?: boolean
+  onToggleHelp: () => void
+}
 
-export default function AppFooter({ helpOpen, onToggleHelp }: AppFooterProps) {
+export default function AppFooter({
+  helpOpen,
+  showRanking = false,
+  onToggleHelp,
+}: AppFooterProps) {
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try {
       return localStorage.getItem(soundKey) === 'true'
@@ -31,6 +39,11 @@ export default function AppFooter({ helpOpen, onToggleHelp }: AppFooterProps) {
       >
         <span aria-hidden="true">?</span> 遊び方
       </button>
+      {showRanking && (
+        <a className="footer-ranking" href="#/ranking">
+          ランキング
+        </a>
+      )}
       <button
         className="bar-button sound-toggle"
         aria-pressed={soundEnabled}

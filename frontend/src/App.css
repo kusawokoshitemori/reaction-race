@@ -284,3 +284,198 @@ form label {
     font-size: 0.75rem;
   }
 }
+/* Graphic green start screen. */
+.start-screen {
+  --brand: #195c44;
+  --brand-hover: #123e2e;
+  color: #193f2e;
+}
+.start-screen main {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 580px;
+  padding: 40px 24px;
+  background:
+    repeating-linear-gradient(115deg, transparent 0 98px, #4a743414 99px 100px),
+    radial-gradient(ellipse at 80% 20%, #f2f8d8, transparent 65%),
+    linear-gradient(115deg, #c0de88, #e6f2c4 60%, #d6e8a8);
+}
+.start-screen main::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  right: -80px;
+  top: -90px;
+  width: 320px;
+  height: 320px;
+  border: 40px solid #9cbf6820;
+  border-radius: 50%;
+}
+.start-screen .page-content {
+  max-width: 720px;
+  text-align: center;
+}
+.start-screen .page-heading {
+  margin-bottom: 36px;
+}
+.start-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.23em;
+  margin: 0 0 16px;
+}
+.start-screen h1 {
+  font-family: Arial, system-ui, sans-serif;
+  font-size: clamp(39px, 7vw, 76px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.065em;
+  line-height: 0.95;
+  color: #1c4835;
+}
+.start-screen h1 span {
+  display: block;
+}
+.start-screen .start-button {
+  position: relative;
+  width: min(100%, 430px);
+  min-height: 76px;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  background: #214d37;
+  color: #f5ffdf;
+  box-shadow: 5px 5px 0 #93b557;
+  padding: 14px 48px;
+  font-size: 28px;
+  font-weight: 800;
+  transition:
+    background-color 120ms,
+    transform 120ms,
+    box-shadow 120ms;
+}
+.start-button > span {
+  position: absolute;
+  right: 22px;
+}
+@media (hover: hover) {
+  .start-screen .start-button:hover {
+    background: #123e2e;
+  }
+}
+.start-screen .start-button:active {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 #93b557;
+}
+.rating-panel {
+  width: min(100%, 280px);
+  margin: 36px auto 0;
+  border: 3px solid #195c44;
+  border-radius: 16px;
+  background: #195c44;
+  overflow: hidden;
+  box-shadow: 0 5px 0 #1c483513;
+}
+.rating-panel h2 {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: #f8ffe9;
+}
+.rating-score {
+  padding: 12px;
+  background: #fbfbea;
+  color: #214d37;
+  font-family: Arial, system-ui, sans-serif;
+  font-size: 58px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.rating-score.is-guest {
+  font-family: inherit;
+  font-size: 25px;
+  letter-spacing: 0;
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+}
+.rating-record {
+  padding: 7px 14px;
+  text-align: right;
+  color: #f8ffe9;
+  font-size: 13px;
+}
+.rating-demo-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #45613e;
+}
+.start-screen .app-header,
+.start-screen .app-footer {
+  min-height: 48px;
+  padding: 7px 18px;
+}
+.start-screen .account-link,
+.footer-ranking {
+  background: #edf7db;
+  color: #195c44;
+  padding: 5px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.start-screen .app-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.start-screen .bar-button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 5px 0;
+}
+.start-screen .sound-toggle {
+  justify-self: end;
+}
+.start-screen .sound-toggle small {
+  display: none;
+}
+.start-screen .account-link:hover,
+.footer-ranking:hover {
+  background: #dcebcf;
+}
+@media (max-width: 600px) {
+  .start-screen main {
+    padding: 32px 22px;
+  }
+  .start-screen .app-header,
+  .start-screen .app-footer {
+    padding: 7px 12px;
+    gap: 8px;
+  }
+  .start-screen .app-footer {
+    padding-bottom: max(7px, env(safe-area-inset-bottom));
+  }
+  .start-screen .start-button {
+    min-height: 68px;
+    font-size: 24px;
+  }
+  .rating-panel {
+    width: min(100%, 240px);
+  }
+  .start-kicker {
+    letter-spacing: 0.15em;
+  }
+  .footer-ranking {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}
