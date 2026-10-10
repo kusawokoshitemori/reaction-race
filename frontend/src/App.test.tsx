@@ -29,9 +29,14 @@ test('初回は認証、ゲスト選択後はレートなしのタイトルを�
   await click('ゲストで続ける')
   await screen.findByRole('button', { name: 'ゲーム開始' })
   expect(screen.getByText('レートなし')).toBeTruthy()
-  await userEvent.click(screen.getByRole('link', { name: 'ランキング' }))
+  await userEvent.click(screen.getByRole('button', { name: 'ランキング' }))
   await screen.findByRole('heading', { name: 'ランキング' })
-  await click('タイトルに戻る')
+  expect(screen.queryByRole('button', { name: 'タイトルに戻る' })).toBeNull()
+  expect(screen.getAllByRole('row')).toHaveLength(51)
+  await click('ランキング')
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'ランキング' }),
+  )
   await screen.findByRole('button', { name: 'ゲーム開始' })
 })
 
@@ -155,4 +160,29 @@ test('音設定を切り替え、再マウント後も保持する', async () =>
       .getAttribute('aria-pressed'),
   ).toBe('false')
   localStorage.clear()
+})
+
+test('ランキングは背景クリックやEscapeでは閉じず同じボタンで閉じる', async () => {
+  await enter()
+  await click('ランキング')
+  const title = await screen.findByRole('heading', { name: 'ランキング' })
+  expect(document.activeElement).toBe(title)
+  expect(screen.queryByRole('button', { name: 'ゲーム開始' })).toBeNull()
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(document.getElementById('main-content')!)
+  expect(screen.getByRole('heading', { name: 'ランキング' })).toBeTruthy()
+  await click('ランキング')
+  await screen.findByRole('button', { name: 'ゲーム開始' })
+  await go('/ranking')
+  expect(
+    screen
+      .getByRole('button', { name: 'ランキング' })
+      .getAttribute('aria-expanded'),
+  ).toBe('true')
+  await go('/')
+  expect(
+    screen
+      .getByRole('button', { name: 'ランキング' })
+      .getAttribute('aria-expanded'),
+  ).toBe('false')
 })

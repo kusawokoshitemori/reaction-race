@@ -479,3 +479,161 @@ form label {
     font-size: 12px;
   }
 }
+
+/* Shared cool accent for personal rating and the ranking panel. */
+.start-screen {
+  --rating-frame: #28768b;
+  --rating-paper: #edf9fc;
+  --rating-ink: #164b60;
+}
+.start-screen .rating-panel {
+  border-color: var(--rating-frame);
+  background: var(--rating-frame);
+}
+.start-screen .rating-score {
+  background: var(--rating-paper);
+  color: var(--rating-ink);
+}
+.start-screen .footer-ranking {
+  margin: 0;
+  border: 0;
+  line-height: 1.7;
+}
+.start-screen .footer-ranking[aria-expanded='true'] {
+  background: #d7f1fa;
+  color: #164b60;
+  box-shadow: inset 0 -3px 0 #63b4cc;
+}
+.ranking-panel {
+  position: absolute;
+  inset: 16px max(16px, calc((100% - 660px) / 2));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 3px solid var(--rating-frame);
+  border-radius: 16px;
+  background: var(--rating-frame);
+  color: var(--rating-ink);
+  overflow: hidden;
+}
+.ranking-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  color: #f4fcff;
+}
+.start-screen .ranking-heading h1 {
+  font:
+    700 22px/1.4 'Hiragino Kaku Gothic ProN',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.06em;
+  color: inherit;
+}
+.ranking-heading > span {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.ranking-summary {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 10px 16px;
+  background: #d8eff6;
+  font-size: 13px;
+}
+.ranking-summary small {
+  font-size: 11px;
+}
+.ranking-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 8px 8px;
+}
+.ranking-scroll:focus-visible {
+  outline-offset: -3px;
+}
+.ranking-panel table {
+  width: 100%;
+  table-layout: fixed;
+  border-spacing: 0 5px;
+  font-size: 15px;
+}
+.ranking-panel th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--rating-frame);
+  color: #f4fcff;
+  padding: 8px;
+  font-size: 12px;
+  text-align: left;
+}
+.ranking-panel th:first-child {
+  width: 56px;
+  text-align: center;
+}
+.ranking-panel th:last-child {
+  width: 100px;
+  text-align: right;
+}
+.ranking-panel td {
+  padding: 10px 8px;
+  background: var(--rating-paper);
+  overflow-wrap: anywhere;
+}
+.ranking-panel td:first-child {
+  border-radius: 6px 0 0 6px;
+  text-align: center;
+  font-weight: 700;
+}
+.ranking-panel td:last-child {
+  border-radius: 0 6px 6px 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.ranking-panel .is-current-player td {
+  background: #caedf7;
+}
+.ranking-you {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ranking-message {
+  margin: 0;
+  padding: 36px 20px;
+  flex: 1;
+  background: var(--rating-paper);
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .ranking-panel {
+    inset: 12px;
+  }
+  .ranking-heading {
+    padding: 10px 12px;
+  }
+  .ranking-panel table {
+    font-size: 13px;
+  }
+  .ranking-panel th:first-child {
+    width: 42px;
+  }
+  .ranking-panel th:last-child {
+    width: 76px;
+  }
+  .ranking-panel td {
+    padding: 10px 6px;
+  }
+}
