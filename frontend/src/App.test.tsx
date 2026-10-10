@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from './App'
@@ -17,16 +24,18 @@ async function go(hash: string) {
 }
 async function enter() {
   render(<App />)
-  await click('ゲストで続ける')
+  await click('ゲストで参加')
   await screen.findByRole('button', { name: 'ゲーム開始' })
 }
 
 test('初回は認証、ゲスト選択後はレートなしのタイトルを表示する', async () => {
   render(<App />)
-  expect(screen.getByLabelText('メールアドレス')).toBeTruthy()
-  expect(screen.getByLabelText('パスワード')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Googleで続ける' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Xで続ける' })).toBeTruthy()
+  expect(within(screen.getByRole('banner')).queryByRole('link')).toBeNull()
+  expect(within(screen.getByRole('banner')).queryByRole('button')).toBeNull()
   expect(screen.queryByRole('button', { name: 'ゲーム開始' })).toBeNull()
-  await click('ゲストで続ける')
+  await click('ゲストで参加')
   await screen.findByRole('button', { name: 'ゲーム開始' })
   expect(screen.getByText('レートなし')).toBeTruthy()
   await userEvent.click(screen.getByRole('button', { name: 'ランキング' }))
@@ -42,7 +51,7 @@ test('初回は認証、ゲスト選択後はレートなしのタイトルを�
 
 test('仮ログイン後のレート・戦績とログアウト', async () => {
   render(<App />)
-  await click('ログイン')
+  await click('Googleで続ける')
   await screen.findByText('1,500')
   await userEvent.click(
     screen.getByRole('link', { name: 'デモプレイヤーのアカウント' }),
@@ -51,7 +60,9 @@ test('仮ログイン後のレート・戦績とログアウト', async () => {
   await screen.findByRole('heading', { name: '戦績' })
   await go('/auth')
   await click('ログアウト')
-  expect(screen.getByRole('button', { name: 'ゲストで続ける' })).toBeTruthy()
+  expect(within(screen.getByRole('banner')).queryByRole('link')).toBeNull()
+  expect(within(screen.getByRole('banner')).queryByRole('button')).toBeNull()
+  expect(screen.getByRole('button', { name: 'ゲストで参加' })).toBeTruthy()
   await go('/history')
   expect(screen.getByRole('heading', { name: 'ログイン' })).toBeTruthy()
 })
@@ -93,7 +104,7 @@ test('直接アクセス・不正URL・再読み込み相当の再マウント�
   window.history.replaceState(null, '', '#/game')
   const view = render(<App />)
   expect(screen.getByRole('heading', { name: 'ログイン' })).toBeTruthy()
-  await click('ゲストで続ける')
+  await click('ゲストで参加')
   await go('/unknown')
   expect(screen.getByText(/存在しない画面/)).toBeTruthy()
   await click('ゲーム開始')
@@ -125,15 +136,25 @@ test('遊び方の再クリックと戻る矢印で試合状態を保持して�
   }
 })
 
-test('遊び方を開閉しても入力中のフォームを保持する', async () => {
+test('初回の遊び方から参加方法の選択へ戻れる', async () => {
   render(<App />)
-  await userEvent.type(
-    screen.getByLabelText('メールアドレス'),
-    'test@example.com',
-  )
   await click('遊び方')
   await click('元の画面に戻る')
-  expect(screen.getByDisplayValue('test@example.com')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Googleで続ける' })).toBeTruthy()
+  expect(within(screen.getByRole('banner')).queryByRole('button')).toBeNull()
+})
+
+test('ゲスト参加後はヘッダーからログイン画面へ戻れる', async () => {
+  await enter()
+  await userEvent.click(
+    screen.getByRole('link', { name: 'ゲスト：ログイン・アカウント' }),
+  )
+  await screen.findByRole('button', { name: 'Googleで続ける' })
+  expect(
+    within(screen.getByRole('banner')).getByRole('button', {
+      name: 'タイトルに戻る',
+    }),
+  ).toBeTruthy()
 })
 
 test('音設定を切り替え、再マウント後も保持する', async () => {

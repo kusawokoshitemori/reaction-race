@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { initialSession, resolveRoute, transition } from './navigation'
-import type { Action, Outcome, Route, Session } from './navigation'
+import type { Action, Route, Session } from './navigation'
+import AuthPanel from './components/AuthPanel'
+import type { LoginProvider } from './components/AuthPanel'
+import AccountPanel from './components/AccountPanel'
+import HistoryPanel from './components/HistoryPanel'
 import AppHeader from './components/AppHeader'
 import AppFooter from './components/AppFooter'
 import HelpContent from './components/HelpContent'
@@ -19,11 +23,6 @@ const labels: Record<Route, string> = {
   '/history': '戦績',
   '/ranking': 'ランキング',
 }
-const outcomes: Record<Outcome, string> = {
-  success: '成功：12位 / 100人・反応時間 240 ms',
-  flying: 'フライング：順位・記録なし',
-  'no-record': '未入力：記録なし',
-}
 function log(event: string, details: Record<string, unknown>) {
   console.info('[navigation]', { event, ...details })
 }
@@ -32,6 +31,7 @@ export default function App() {
   const sessionRef = useRef<Session>({ ...initialSession })
   const [session, setSession] = useState<Session>({ ...initialSession })
   const [route, setRoute] = useState<Route>('/auth')
+  const [provider, setProvider] = useState<LoginProvider | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const helpHeading = useRef<HTMLHeadingElement>(null)
   const [notice, setNotice] = useState('')
@@ -40,6 +40,9 @@ export default function App() {
   const rankingButton = useRef<HTMLButtonElement>(null)
   const previousRoute = useRef<Route>('/auth')
   const rankingOpen = route === '/ranking'
+  const isAuth = route === '/auth' && !session.signedIn
+  const pageTitle =
+    route === '/auth' && session.signedIn ? 'アカウント' : labels[route]
   const isStart = route === '/' || rankingOpen
 
   function toggleRanking() {
@@ -77,14 +80,14 @@ export default function App() {
       ? 'hogehoge | Reaction Race'
       : route === '/'
         ? 'Reaction Race'
-        : `${labels[route]} | Reaction Race`
+        : `${pageTitle} | Reaction Race`
     if (helpOpen) helpHeading.current?.focus()
     else if (route === '/ranking') rankingHeading.current?.focus()
     else if (previousRoute.current === '/ranking' && route === '/')
       rankingButton.current?.focus()
     else heading.current?.focus()
     previousRoute.current = route
-  }, [route, helpOpen])
+  }, [route, helpOpen, pageTitle])
 
   function act(action: Action, destination?: Route) {
     const previous = sessionRef.current
@@ -102,7 +105,9 @@ export default function App() {
   }
 
   return (
-    <div className={`shell${isStart && !helpOpen ? ' start-screen' : ''}`}>
+    <div
+      className={`shell${isStart && !helpOpen ? ' start-screen' : ''}${isAuth && !helpOpen ? ' auth-screen' : ''}`}
+    >
       <a
         className="skip-link"
         href="#main-content"
@@ -119,6 +124,7 @@ export default function App() {
         本文へ移動
       </a>
       <AppHeader
+        entered={session.entered}
         signedIn={session.signedIn}
         showBack={helpOpen || (session.entered && !isStart)}
         backLabel={helpOpen ? '元の画面に戻る' : 'タイトルに戻る'}
@@ -143,7 +149,7 @@ export default function App() {
           />
         )}
         <div className="page-content" hidden={helpOpen || rankingOpen}>
-          <div className="page-heading">
+          <div className={`page-heading${isAuth ? ' visually-hidden' : ''}`}>
             {route === '/' && (
               <p className="start-kicker">100 PLAYERS / ONE SIGNAL</p>
             )}
@@ -153,7 +159,7 @@ export default function App() {
                   REACTION <span>RACE</span>
                 </>
               ) : (
-                labels[route]
+                pageTitle
               )}
             </h1>
           </div>
@@ -238,82 +244,25 @@ export default function App() {
               onRematch={() => act('join', '/game')}
             />
           )}
-          {route === '/auth' && (
-            <section>
-              {session.signedIn ? (
-                <>
-                  <p>デモプレイヤーとしてログイン中です。</p>
-                  <p>
-                    <a href="#/history">戦績を見る</a>
-                  </p>
-                  <button onClick={() => act('logout', '/auth')}>
-                    ログアウト
-                  </button>
-                  <a className="button secondary" href="#/">
-                    タイトルに戻る
-                  </a>
-                </>
-              ) : (
-                <>
-                  <form
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      event.currentTarget.reset()
-                      act('login', '/')
-                    }}
-                  >
-                    <p id="auth-note">
-                      画面確認用です。実際の認証は行いません。入力する場合はダミー情報を使ってください。
-                    </p>
-                    <label>
-                      メールアドレス
-                      <input
-                        type="email"
-                        name="email"
-                        autoComplete="off"
-                        placeholder="demo@example.com"
-                        aria-describedby="auth-note"
-                      />
-                    </label>
-                    <label>
-                      パスワード
-                      <input
-                        type="password"
-                        name="password"
-                        autoComplete="off"
-                        placeholder="ダミーパスワード"
-                        aria-describedby="auth-note"
-                      />
-                    </label>
-                    <button type="submit">ログイン</button>
-                  </form>
-                  <button
-                    className="secondary"
-                    onClick={() => act('guest', '/')}
-                  >
-                    ゲストで続ける
-                  </button>
-                </>
-              )}
-            </section>
-          )}
-          {route === '/history' && (
-            <section>
-              <p>デモプレイヤーの仮戦績</p>
-              <ul>
-                <li>サンプル試合：12位・240 ms・レート +6</li>
-                {session.result && (
-                  <li>今回の仮試合：{outcomes[session.result]}</li>
-                )}
-              </ul>
-              {session.result && <a href="#/result">今回の試合結果へ</a>}
-            </section>
-          )}
-          {route === '/history' && (
-            <p className="back">
-              <a href="#/">タイトルに戻る</a>
-            </p>
-          )}
+          {route === '/auth' &&
+            (session.signedIn ? (
+              <AccountPanel
+                provider={provider}
+                onLogout={() => {
+                  setProvider(null)
+                  act('logout', '/auth')
+                }}
+              />
+            ) : (
+              <AuthPanel
+                onLogin={(value) => {
+                  setProvider(value)
+                  act('login', '/')
+                }}
+                onGuest={() => act('guest', '/')}
+              />
+            ))}
+          {route === '/history' && <HistoryPanel result={session.result} />}
         </div>
       </main>
       <AppFooter
