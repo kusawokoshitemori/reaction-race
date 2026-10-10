@@ -11,7 +11,7 @@ export default function HelpContent() {
             type="button"
             className="secondary"
             aria-pressed={selected === index}
-            aria-controls={`help-section-${selected}`}
+            aria-controls="help-section"
             onClick={() => setSelected(index)}
           >
             hogehoge
@@ -19,7 +19,7 @@ export default function HelpContent() {
         ))}
       </nav>
       <section
-        id={`help-section-${selected}`}
+        id="help-section"
         className="help-copy"
         aria-label={`遊び方の項目 ${selected + 1}`}
       >

@@ -225,5 +225,3 @@ Go のテストは一時的なループバックポートを使用し、DB は�
 - [Viteの導入手順](https://vite.dev/guide/)
 - [Goの配布ページ](https://go.dev/dl/)
 - [PostgreSQL公式Dockerイメージ](https://hub.docker.com/_/postgres)
-
-共通UIの方針と確認結果は [共通UI](docs/common-ui.md) を参照してください。
