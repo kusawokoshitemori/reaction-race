@@ -5,6 +5,8 @@ import AppHeader from './components/AppHeader'
 import AppFooter from './components/AppFooter'
 import HelpContent from './components/HelpContent'
 import RatingPanel from './components/RatingPanel'
+import RankingPanel from './components/RankingPanel'
+import { demoRanking } from './ranking'
 import './App.css'
 
 const labels: Record<Route, string> = {
@@ -32,6 +34,15 @@ export default function App() {
   const helpHeading = useRef<HTMLHeadingElement>(null)
   const [notice, setNotice] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
+  const rankingHeading = useRef<HTMLHeadingElement>(null)
+  const rankingButton = useRef<HTMLButtonElement>(null)
+  const previousRoute = useRef<Route>('/auth')
+  const rankingOpen = route === '/ranking'
+  const isStart = route === '/' || rankingOpen
+
+  function toggleRanking() {
+    window.location.hash = rankingOpen ? '/' : '/ranking'
+  }
 
   useEffect(() => {
     function sync() {
@@ -65,7 +76,12 @@ export default function App() {
       : route === '/'
         ? 'Reaction Race'
         : `${labels[route]} | Reaction Race`
-    ;(helpOpen ? helpHeading : heading).current?.focus()
+    if (helpOpen) helpHeading.current?.focus()
+    else if (route === '/ranking') rankingHeading.current?.focus()
+    else if (previousRoute.current === '/ranking' && route === '/')
+      rankingButton.current?.focus()
+    else heading.current?.focus()
+    previousRoute.current = route
   }, [route, helpOpen])
 
   function act(action: Action, destination?: Route) {
@@ -77,22 +93,25 @@ export default function App() {
   }
 
   return (
-    <div
-      className={`shell${route === '/' && !helpOpen ? ' start-screen' : ''}`}
-    >
+    <div className={`shell${isStart && !helpOpen ? ' start-screen' : ''}`}>
       <a
         className="skip-link"
         href="#main-content"
         onClick={(event) => {
           event.preventDefault()
-          ;(helpOpen ? helpHeading : heading).current?.focus()
+          ;(helpOpen
+            ? helpHeading
+            : rankingOpen
+              ? rankingHeading
+              : heading
+          ).current?.focus()
         }}
       >
         本文へ移動
       </a>
       <AppHeader
         signedIn={session.signedIn}
-        showBack={helpOpen || (session.entered && route !== '/')}
+        showBack={helpOpen || (session.entered && !isStart)}
         backLabel={helpOpen ? '元の画面に戻る' : 'タイトルに戻る'}
         onBack={() => (helpOpen ? setHelpOpen(false) : act('leave', '/'))}
         onAccount={() => setHelpOpen(false)}
@@ -106,7 +125,15 @@ export default function App() {
             <HelpContent />
           </div>
         )}
-        <div className="page-content" hidden={helpOpen}>
+        {rankingOpen && !helpOpen && (
+          <RankingPanel
+            state={{ status: 'success', entries: demoRanking }}
+            currentPlayerId={session.signedIn ? 'demo-player' : null}
+            headingRef={rankingHeading}
+            onRetry={() => log('ranking-retry', { source: 'demo' })}
+          />
+        )}
+        <div className="page-content" hidden={helpOpen || rankingOpen}>
           <div className="page-heading">
             {route === '/' && (
               <p className="start-kicker">100 PLAYERS / ONE SIGNAL</p>
@@ -282,16 +309,6 @@ export default function App() {
               {session.result && <a href="#/result">今回の試合結果へ</a>}
             </section>
           )}
-          {route === '/ranking' && (
-            <section>
-              <p>総合レートランキング（固定の仮データ）</p>
-              <ol>
-                <li>プレイヤーA：1,600</li>
-                <li>プレイヤーB：1,550</li>
-                <li>プレイヤーC：1,500</li>
-              </ol>
-            </section>
-          )}
           {route === '/history' && (
             <p className="back">
               <a href="#/">タイトルに戻る</a>
@@ -301,7 +318,10 @@ export default function App() {
       </main>
       <AppFooter
         helpOpen={helpOpen}
-        showRanking={route === '/' && !helpOpen}
+        showRanking={isStart && !helpOpen}
+        rankingOpen={rankingOpen}
+        rankingButtonRef={rankingButton}
+        onToggleRanking={toggleRanking}
         onToggleHelp={() => setHelpOpen((value) => !value)}
       />
     </div>

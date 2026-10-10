@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react'
+import type { Ref } from 'react'
 
 const soundKey = 'reaction-race:sound-enabled'
 
 type AppFooterProps = {
   helpOpen: boolean
   showRanking?: boolean
+  rankingOpen?: boolean
+  rankingButtonRef?: Ref<HTMLButtonElement>
+  onToggleRanking?: () => void
   onToggleHelp: () => void
 }
 
 export default function AppFooter({
   helpOpen,
   showRanking = false,
+  rankingOpen = false,
+  rankingButtonRef,
+  onToggleRanking,
   onToggleHelp,
 }: AppFooterProps) {
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -40,9 +47,15 @@ export default function AppFooter({
         <span aria-hidden="true">?</span> 遊び方
       </button>
       {showRanking && (
-        <a className="footer-ranking" href="#/ranking">
+        <button
+          className="footer-ranking"
+          ref={rankingButtonRef}
+          onClick={onToggleRanking}
+          aria-expanded={rankingOpen}
+          aria-controls={rankingOpen ? 'ranking-panel' : undefined}
+        >
           ランキング
-        </a>
+        </button>
       )}
       <button
         className="bar-button sound-toggle"
