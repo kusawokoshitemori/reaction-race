@@ -39,7 +39,9 @@ test('仮ログイン後のレート・戦績とログアウト', async () => {
   render(<App />)
   await click('ログイン')
   await screen.findByText('1,500')
-  await userEvent.click(screen.getByRole('link', { name: 'デモプレイヤー' }))
+  await userEvent.click(
+    screen.getByRole('link', { name: 'デモプレイヤーのアカウント' }),
+  )
   await userEvent.click(await screen.findByRole('link', { name: '戦績を見る' }))
   await screen.findByRole('heading', { name: '戦績' })
   await go('/auth')
@@ -96,4 +98,61 @@ test('直接アクセス・不正URL・再読み込み相当の再マウント�
   render(<App />)
   await waitFor(() => expect(window.location.hash).toBe('#/auth'))
   expect(screen.getByRole('heading', { name: 'ログイン' })).toBeTruthy()
+})
+
+test('遊び方の再クリックと戻る矢印で試合状態を保持して復帰する', async () => {
+  await enter()
+  await click('ゲーム開始')
+  await click('募集を終了して開始（仮）')
+  for (const close of ['遊び方', '元の画面に戻る']) {
+    await click('遊び方')
+    expect(
+      screen.getByRole('heading', { name: 'hogehoge', level: 1 }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('heading', { name: '合図を待ってください' }),
+    ).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await click(close)
+    expect(
+      screen.getByRole('heading', { name: '合図を待ってください' }),
+    ).toBeTruthy()
+    expect(window.location.hash).toBe('#/game')
+  }
+})
+
+test('遊び方を開閉しても入力中のフォームを保持する', async () => {
+  render(<App />)
+  await userEvent.type(
+    screen.getByLabelText('メールアドレス'),
+    'test@example.com',
+  )
+  await click('遊び方')
+  await click('元の画面に戻る')
+  expect(screen.getByDisplayValue('test@example.com')).toBeTruthy()
+})
+
+test('音設定を切り替え、再マウント後も保持する', async () => {
+  localStorage.clear()
+  const view = render(<App />)
+  expect(
+    screen
+      .getByRole('button', { name: '音を有効にする' })
+      .getAttribute('aria-pressed'),
+  ).toBe('false')
+  await click('音を有効にする')
+  view.unmount()
+  render(<App />)
+  expect(
+    screen
+      .getByRole('button', { name: '音を有効にする' })
+      .getAttribute('aria-pressed'),
+  ).toBe('true')
+  await click('音を有効にする')
+  expect(
+    screen
+      .getByRole('button', { name: '音を有効にする' })
+      .getAttribute('aria-pressed'),
+  ).toBe('false')
+  localStorage.clear()
 })
