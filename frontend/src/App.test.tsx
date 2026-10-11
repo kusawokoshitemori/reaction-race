@@ -1,17 +1,21 @@
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 
 beforeEach(() => window.history.replaceState(null, '', '/'))
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 async function click(name: string) {
   await userEvent.click(await screen.findByRole('button', { name }))
@@ -71,15 +75,18 @@ for (const outcome of ['success', 'flying', 'no-record']) {
   test(`${outcome}の結果から再戦できる`, async () => {
     await enter()
     await click('ゲーム開始')
-    await click('募集を終了して開始（仮）')
-    if (outcome === 'flying') {
-      await click('押す（フライング）')
-    } else {
-      await click('合図を出す（仮）')
-      await click(outcome === 'success' ? '押す' : '3秒経過・未入力（仮）')
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    fireEvent.click(screen.getByRole('button', { name: /構える/ }))
+    if (outcome !== 'flying') act(() => vi.advanceTimersByTime(2000))
+    if (outcome === 'no-record') act(() => vi.advanceTimersByTime(3000))
+    else {
+      fireEvent.keyDown(window, { code: 'Space' })
+      act(() => vi.advanceTimersByTime(1300))
     }
-    if (outcome !== 'no-record') await click('入力受付を終了（仮）')
-    await click('確定結果を表示（仮）')
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    await click('結果を見る')
     await screen.findByRole('heading', { name: '試合結果' })
     const summary = screen.getByRole('region', { name: 'あなたの結果' })
     expect(summary.textContent).toContain(
@@ -90,7 +97,7 @@ for (const outcome of ['success', 'flying', 'no-record']) {
           : '未入力',
     )
     await click('再戦')
-    await screen.findByRole('heading', { name: '参加者を募集中' })
+    await screen.findByRole('heading', { name: '一瞬に、集中。' })
     await click('タイトルに戻る')
     await screen.findByRole('button', { name: 'ゲーム開始' })
     await go('/game')
@@ -108,30 +115,26 @@ test('直接アクセス・不正URL・再読み込み相当の再マウント�
   await go('/unknown')
   expect(screen.getByText(/存在しない画面/)).toBeTruthy()
   await click('ゲーム開始')
-  await screen.findByRole('heading', { name: '参加者を募集中' })
+  await screen.findByRole('heading', { name: '一瞬に、集中。' })
   view.unmount()
   render(<App />)
   await waitFor(() => expect(window.location.hash).toBe('#/auth'))
   expect(screen.getByRole('heading', { name: 'ログイン' })).toBeTruthy()
 })
 
-test('遊び方の再クリックと戻る矢印で試合状態を保持して復帰する', async () => {
+test('遊び方を開くと試合は中断し、戻ったあと結果を確認できる', async () => {
   await enter()
   await click('ゲーム開始')
-  await click('募集を終了して開始（仮）')
+  await click('構える')
   for (const close of ['遊び方', '元の画面に戻る']) {
     await click('遊び方')
     expect(
       screen.getByRole('heading', { name: 'hogehoge', level: 1 }),
     ).toBeTruthy()
-    expect(
-      screen.queryByRole('heading', { name: '合図を待ってください' }),
-    ).toBeNull()
+    expect(screen.queryByRole('heading', { name: '中断' })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
     await click(close)
-    expect(
-      screen.getByRole('heading', { name: '合図を待ってください' }),
-    ).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '中断' })).toBeTruthy()
     expect(window.location.hash).toBe('#/game')
   }
 })

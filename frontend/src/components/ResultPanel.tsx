@@ -93,7 +93,7 @@ export default function ResultPanel({ result, onRematch }: ResultPanelProps) {
         </div>
       </div>
       <p className="result-demo-note">
-        順位・反応時間・レートは画面確認用の仮データです。保存はされません。
+        自分の反応時間はブラウザでの実測値です。他の参加者・順位・レートはモックで、保存はされません。
       </p>
       <div className="result-actions">
         <button onClick={onRematch}>

@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import type { Outcome } from '../navigation'
-const outcomes: Record<Outcome, string> = {
-  success: '12位 / 100人・240 ms',
+import type { MatchResult } from '../result'
+const outcomes = {
   flying: 'フライング・記録なし',
   'no-record': '未入力・記録なし',
 }
-export default function HistoryPanel({ result }: { result: Outcome | null }) {
+export default function HistoryPanel({
+  result,
+}: {
+  result: MatchResult | null
+}) {
   const [empty, setEmpty] = useState(false)
   return (
     <section className="account-card" aria-label="プレイヤーの戦績">
@@ -31,7 +34,11 @@ export default function HistoryPanel({ result }: { result: Outcome | null }) {
           {result && (
             <li>
               <span>今回の仮試合</span>
-              <strong>{outcomes[result]}</strong>
+              <strong>
+                {result.outcome === 'success'
+                  ? `${result.rank}位 / ${result.participants}人・${result.reactionMs} ms`
+                  : outcomes[result.outcome]}
+              </strong>
               <a href="#/result">試合結果を見る →</a>
             </li>
           )}

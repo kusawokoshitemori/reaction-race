@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { initialSession, resolveRoute, transition } from './navigation'
 import type { Action, Route, Session } from './navigation'
 import AuthPanel from './components/AuthPanel'
@@ -11,6 +11,7 @@ import HelpContent from './components/HelpContent'
 import RatingPanel from './components/RatingPanel'
 import RankingPanel from './components/RankingPanel'
 import ResultPanel from './components/ResultPanel'
+import GamePanel from './components/GamePanel'
 import { createDemoResult } from './result'
 import { demoRanking } from './ranking'
 import './App.css'
@@ -34,6 +35,7 @@ export default function App() {
   const [provider, setProvider] = useState<LoginProvider | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const helpHeading = useRef<HTMLHeadingElement>(null)
+  const [reactionMs, setReactionMs] = useState<number | null>(null)
   const [notice, setNotice] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
   const rankingHeading = useRef<HTMLHeadingElement>(null)
@@ -89,24 +91,22 @@ export default function App() {
     previousRoute.current = route
   }, [route, helpOpen, pageTitle])
 
-  function act(action: Action, destination?: Route) {
+  const act = useCallback((action: Action, destination?: Route) => {
     const previous = sessionRef.current
     const next = transition(previous, action)
     sessionRef.current = next
     setSession(next)
-    log('action', { action, from: session.phase, to: next.phase })
+    if (action === 'join' || action === 'logout') setReactionMs(null)
+    log('action', { action, from: previous.phase, to: next.phase })
     if (action === 'finish' && next !== previous && next.result) {
-      log('result-ready', {
-        source: 'demo',
-        ...createDemoResult(next.result, next.signedIn),
-      })
+      log('result-ready', { source: 'demo', outcome: next.result })
     }
     if (destination) window.location.hash = destination
-  }
+  }, [])
 
   return (
     <div
-      className={`shell${isStart && !helpOpen ? ' start-screen' : ''}${isAuth && !helpOpen ? ' auth-screen' : ''}`}
+      className={`shell${isStart && !helpOpen ? ' start-screen' : ''}${isAuth && !helpOpen ? ' auth-screen' : ''}${route === '/game' && !helpOpen ? ' game-screen' : ''}`}
     >
       <a
         className="skip-link"
@@ -149,7 +149,9 @@ export default function App() {
           />
         )}
         <div className="page-content" hidden={helpOpen || rankingOpen}>
-          <div className={`page-heading${isAuth ? ' visually-hidden' : ''}`}>
+          <div
+            className={`page-heading${isAuth || route === '/game' ? ' visually-hidden' : ''}`}
+          >
             {route === '/' && (
               <p className="start-kicker">100 PLAYERS / ONE SIGNAL</p>
             )}
@@ -186,61 +188,22 @@ export default function App() {
             </section>
           )}
           {route === '/game' && (
-            <section aria-live="polite">
-              {session.phase === 'waiting' && (
-                <>
-                  <h2>参加者を募集中</h2>
-                  <p>仮の待機室です。不足人数はボットで補う想定です。</p>
-                  <button onClick={() => act('start')}>
-                    募集を終了して開始（仮）
-                  </button>
-                </>
-              )}
-              {session.phase === 'ready' && (
-                <>
-                  <h2>合図を待ってください</h2>
-                  <button onClick={() => act('tap')}>押す（フライング）</button>
-                  <button onClick={() => act('signal')}>
-                    合図を出す（仮）
-                  </button>
-                </>
-              )}
-              {session.phase === 'signal' && (
-                <>
-                  <h2>今だ！</h2>
-                  <button onClick={() => act('tap')}>押す</button>
-                  <button onClick={() => act('timeout')}>
-                    3秒経過・未入力（仮）
-                  </button>
-                </>
-              )}
-              {session.phase === 'submitted' && (
-                <>
-                  <h2>入力を受け付けました</h2>
-                  <p>
-                    {session.outcome === 'flying'
-                      ? 'フライングです。'
-                      : '他の参加者の入力を待っています。'}
-                  </p>
-                  <button onClick={() => act('settle')}>
-                    入力受付を終了（仮）
-                  </button>
-                </>
-              )}
-              {session.phase === 'settling' && (
-                <>
-                  <h2>結果を確定中</h2>
-                  <p>遅延補正・順位計算・保存を行う想定です。</p>
-                  <button onClick={() => act('finish', '/result')}>
-                    確定結果を表示（仮）
-                  </button>
-                </>
-              )}
-            </section>
+            <GamePanel
+              phase={session.phase}
+              outcome={session.outcome}
+              active={!helpOpen}
+              onAction={act}
+              onRecord={setReactionMs}
+              onResult={() => act('finish', '/result')}
+            />
           )}
           {route === '/result' && session.result && (
             <ResultPanel
-              result={createDemoResult(session.result, session.signedIn)}
+              result={createDemoResult(
+                session.result,
+                session.signedIn,
+                reactionMs ?? undefined,
+              )}
               onRematch={() => act('join', '/game')}
             />
           )}
@@ -262,7 +225,19 @@ export default function App() {
                 onGuest={() => act('guest', '/')}
               />
             ))}
-          {route === '/history' && <HistoryPanel result={session.result} />}
+          {route === '/history' && (
+            <HistoryPanel
+              result={
+                session.result
+                  ? createDemoResult(
+                      session.result,
+                      session.signedIn,
+                      reactionMs ?? undefined,
+                    )
+                  : null
+              }
+            />
+          )}
         </div>
       </main>
       <AppFooter
