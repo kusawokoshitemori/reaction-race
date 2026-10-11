@@ -30,8 +30,7 @@ export function resolveRoute(
 ): { route: Route; reason?: string } {
   const path = hash.replace(/^#/, '') || '/'
   if (!session.entered && path !== '/auth') return { route: '/auth' }
-  const route = routes.find((candidate) => candidate === path)
-  if (!route)
+  if (!routes.includes(path as Route))
     return { route: '/', reason: '存在しない画面です。タイトルへ戻りました。' }
   if (path === '/game' && !session.phase)
     return {
@@ -42,7 +41,7 @@ export function resolveRoute(
     return { route: '/', reason: '表示できる試合結果がありません。' }
   if (path === '/history' && !session.signedIn)
     return { route: '/auth', reason: '戦績を見るには仮ログインしてください。' }
-  return { route }
+  return { route: path as Route }
 }
 export type Action =
   | 'join'
@@ -56,6 +55,7 @@ export type Action =
   | 'login'
   | 'logout'
   | 'guest'
+  | 'interrupt'
 export function transition(session: Session, action: Action): Session {
   switch (action) {
     case 'guest':
@@ -83,6 +83,10 @@ export function transition(session: Session, action: Action): Session {
             phase: 'submitted',
             outcome: session.phase === 'ready' ? 'flying' : 'success',
           }
+        : session
+    case 'interrupt':
+      return session.phase === 'ready' || session.phase === 'signal'
+        ? { ...session, phase: 'settling', outcome: 'no-record' }
         : session
     case 'timeout':
       return session.phase === 'signal'

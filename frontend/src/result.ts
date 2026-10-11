@@ -23,10 +23,11 @@ export const resultCopy: Record<
   },
 }
 
-// UI確認用の固定値。結果通知との接続時にサーバーの確定結果へ置き換える。
+// 自分の計測値と固定のモック対戦相手を比較。通信接続時はサーバー確定結果へ置き換える。
 export function createDemoResult(
   outcome: Outcome,
   signedIn: boolean,
+  measuredMs = 240,
 ): MatchResult {
   const shared = {
     participants: 100,
@@ -35,7 +36,16 @@ export function createDemoResult(
       : null,
   }
   return outcome === 'success'
-    ? { ...shared, outcome, rank: 12, reactionMs: 240 }
+    ? {
+        ...shared,
+        outcome,
+        rank:
+          1 +
+          Array.from({ length: 90 }, (_, index) => demoTime(index)).filter(
+            (time) => time <= measuredMs,
+          ).length,
+        reactionMs: measuredMs,
+      }
     : { ...shared, outcome, rank: null, reactionMs: null }
 }
 
@@ -47,6 +57,10 @@ export type MatchStanding = { id: string; name: string; isYou: boolean } & (
   | { outcome: 'success'; rank: number; reactionMs: number }
   | { outcome: 'flying' | 'no-record'; rank: null; reactionMs: null }
 )
+
+function demoTime(index: number) {
+  return index < 11 ? 168 + index * 6 : 248 + (index - 11) * 9
+}
 
 export function createDemoStandings(result: MatchResult): MatchStanding[] {
   const names = [
@@ -79,7 +93,7 @@ export function createDemoStandings(result: MatchResult): MatchStanding[] {
         ...player,
         outcome: 'success',
         rank: place,
-        reactionMs: index < 11 ? 168 + index * 6 : 248 + (index - 11) * 9,
+        reactionMs: demoTime(index),
       }
     },
   )
