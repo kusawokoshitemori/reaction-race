@@ -40,7 +40,7 @@ export function resolveRoute(
   if (path === '/result' && !session.result)
     return { route: '/', reason: '表示できる試合結果がありません。' }
   if (path === '/history' && !session.signedIn)
-    return { route: '/auth', reason: '戦績を見るには仮ログインしてください。' }
+    return { route: '/auth', reason: '戦績を見るにはログインしてください。' }
   return { route: path as Route }
 }
 export type Action =
@@ -59,7 +59,7 @@ export type Action =
 export function transition(session: Session, action: Action): Session {
   switch (action) {
     case 'guest':
-      return { ...session, entered: true }
+      return { ...session, entered: true, signedIn: false }
     case 'login':
       return { ...session, entered: true, signedIn: true }
     case 'logout':

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { initialSession, resolveRoute, transition } from './navigation'
 import type { Action, Route, Session } from './navigation'
 import AuthPanel from './components/AuthPanel'
-import type { LoginProvider } from './components/AuthPanel'
+import { login, loginGuest, logout } from './auth'
+import { useIdentity } from './useIdentity'
+import { authErrorMessage } from './authErrors'
 import AccountPanel from './components/AccountPanel'
 import HistoryPanel from './components/HistoryPanel'
 import AppHeader from './components/AppHeader'
@@ -32,7 +34,9 @@ export default function App() {
   const sessionRef = useRef<Session>({ ...initialSession })
   const [session, setSession] = useState<Session>({ ...initialSession })
   const [route, setRoute] = useState<Route>('/auth')
-  const [provider, setProvider] = useState<LoginProvider | null>(null)
+  const identity = useIdentity()
+  const identityKey = useRef<string | null>(null)
+  const [logoutError, setLogoutError] = useState('')
   const [helpOpen, setHelpOpen] = useState(false)
   const helpHeading = useRef<HTMLHeadingElement>(null)
   const [reactionMs, setReactionMs] = useState<number | null>(null)
@@ -53,6 +57,11 @@ export default function App() {
 
   useEffect(() => {
     function sync() {
+      if (identity.loading) return
+      const key = identity.profile
+        ? `${identity.profile.uid}:${identity.profile.guest}`
+        : null
+      if (key !== identityKey.current) return
       let next = sessionRef.current
       const resolved = resolveRoute(window.location.hash, next)
       if (resolved.route !== '/game' && next.phase) {
@@ -75,7 +84,7 @@ export default function App() {
     sync()
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
-  }, [])
+  }, [identity.loading, identity.profile])
 
   useEffect(() => {
     document.title = helpOpen
@@ -104,6 +113,58 @@ export default function App() {
     if (destination) window.location.hash = destination
   }, [])
 
+  useEffect(() => {
+    if (identity.loading) return
+    const key = identity.profile
+      ? `${identity.profile.uid}:${identity.profile.guest}`
+      : null
+    if (key === identityKey.current) return
+    identityKey.current = key
+    if (identity.profile) {
+      act('logout')
+      act(identity.profile.guest ? 'guest' : 'login')
+      const destination =
+        window.location.hash === '#/auth' || !window.location.hash
+          ? '/'
+          : resolveRoute(window.location.hash, sessionRef.current).route
+      setRoute(destination)
+      setHelpOpen(false)
+      window.history.replaceState(null, '', `#${destination}`)
+    } else {
+      setRoute('/auth')
+      act('logout', '/auth')
+    }
+  }, [identity.loading, identity.profile, act])
+
+  async function handleLogout() {
+    setLogoutError('')
+    try {
+      await logout()
+    } catch (cause) {
+      setLogoutError(authErrorMessage(cause))
+    }
+  }
+
+  if (identity.loading && !identity.profile)
+    return (
+      <main className="shell">
+        <p role="status">ログイン状態を確認しています…</p>
+      </main>
+    )
+  if (identity.error)
+    return (
+      <main className="shell">
+        <p role="alert">{identity.error}</p>
+        <button onClick={identity.retry}>再試行</button>
+        {identity.user && (
+          <button className="secondary" onClick={handleLogout}>
+            ログアウト
+          </button>
+        )}
+        {logoutError && <p role="alert">{logoutError}</p>}
+      </main>
+    )
+
   return (
     <div
       className={`shell${isStart && !helpOpen ? ' start-screen' : ''}${isAuth && !helpOpen ? ' auth-screen' : ''}${route === '/game' && !helpOpen ? ' game-screen' : ''}`}
@@ -126,6 +187,7 @@ export default function App() {
       <AppHeader
         entered={session.entered}
         signedIn={session.signedIn}
+        displayName={identity.profile?.displayName}
         showBack={helpOpen || (session.entered && !isStart)}
         backLabel={helpOpen ? '元の画面に戻る' : 'タイトルに戻る'}
         onBack={() => (helpOpen ? setHelpOpen(false) : act('leave', '/'))}
@@ -209,20 +271,18 @@ export default function App() {
           )}
           {route === '/auth' &&
             (session.signedIn ? (
-              <AccountPanel
-                provider={provider}
-                onLogout={() => {
-                  setProvider(null)
-                  act('logout', '/auth')
-                }}
-              />
+              identity.profile && (
+                <AccountPanel
+                  profile={identity.profile}
+                  onRename={identity.rename}
+                  onLogout={logout}
+                />
+              )
             ) : (
               <AuthPanel
-                onLogin={(value) => {
-                  setProvider(value)
-                  act('login', '/')
-                }}
-                onGuest={() => act('guest', '/')}
+                onLogin={login}
+                onGuest={loginGuest}
+                disabled={identity.loading}
               />
             ))}
           {route === '/history' && (

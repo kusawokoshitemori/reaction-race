@@ -1,33 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import type { LoginProvider } from '../auth'
+import { authDiagnostic, authErrorMessage } from '../authErrors'
+type Props = {
+  onLogin: (provider: LoginProvider) => Promise<unknown>
+  onGuest: () => Promise<unknown>
+  disabled?: boolean
+}
 
-export type LoginProvider = 'Google' | 'X'
-type Props = { onLogin: (provider: LoginProvider) => void; onGuest: () => void }
-
-export default function AuthPanel({ onLogin, onGuest }: Props) {
-  const [pending, setPending] = useState<LoginProvider | null>(null)
+export default function AuthPanel({
+  onLogin,
+  onGuest,
+  disabled = false,
+}: Props) {
+  const [pending, setPending] = useState<LoginProvider | 'ゲスト' | null>(null)
   const [error, setError] = useState('')
-  const [simulateFailure, setSimulateFailure] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current)
-    },
-    [],
-  )
+  const [diagnostic, setDiagnostic] = useState('')
+  const inFlight = useRef(false)
 
-  function login(provider: LoginProvider) {
-    if (timer.current) return
+  async function login(provider: LoginProvider | 'ゲスト') {
+    if (inFlight.current || disabled) return
+    inFlight.current = true
     setError('')
+    setDiagnostic('')
     setPending(provider)
-    timer.current = setTimeout(() => {
-      timer.current = null
+    try {
+      await (provider === 'ゲスト' ? onGuest() : onLogin(provider))
+    } catch (cause) {
+      setError(authErrorMessage(cause))
+      setDiagnostic(authDiagnostic(cause))
+    } finally {
+      inFlight.current = false
       setPending(null)
-      if (simulateFailure)
-        setError(
-          'ログインできませんでした。もう一度お試しいただくか、ゲストで参加してください。',
-        )
-      else onLogin(provider)
-    }, 800)
+    }
   }
 
   return (
@@ -51,7 +55,7 @@ export default function AuthPanel({ onLogin, onGuest }: Props) {
         <div className="provider-actions" aria-busy={pending !== null}>
           <button
             className="provider-button google-button"
-            disabled={pending !== null}
+            disabled={disabled || pending !== null}
             onClick={() => login('Google')}
           >
             <span className="provider-mark" aria-hidden="true">
@@ -61,7 +65,7 @@ export default function AuthPanel({ onLogin, onGuest }: Props) {
           </button>
           <button
             className="provider-button x-button"
-            disabled={pending !== null}
+            disabled={disabled || pending !== null}
             onClick={() => login('X')}
           >
             <span className="provider-mark" aria-hidden="true">
@@ -80,13 +84,16 @@ export default function AuthPanel({ onLogin, onGuest }: Props) {
             {error}
           </p>
         )}
+        {import.meta.env.DEV && error && (
+          <p className="auth-caption">診断コード: {diagnostic}</p>
+        )}
         <div className="auth-divider">
           <span>まずは試してみる</span>
         </div>
         <button
           className="guest-button secondary"
-          disabled={pending !== null}
-          onClick={onGuest}
+          disabled={disabled || pending !== null}
+          onClick={() => login('ゲスト')}
         >
           ゲストで参加 <span aria-hidden="true">→</span>
         </button>
@@ -95,20 +102,6 @@ export default function AuthPanel({ onLogin, onGuest }: Props) {
           <br />
           ゲストのレート・戦績は保存されません。
         </p>
-        {import.meta.env.DEV && (
-          <details className="demo-controls">
-            <summary>表示確認用</summary>
-            <label>
-              <input
-                type="checkbox"
-                checked={simulateFailure}
-                disabled={pending !== null}
-                onChange={(event) => setSimulateFailure(event.target.checked)}
-              />
-              ログイン失敗を再現する
-            </label>
-          </details>
-        )}
       </div>
     </section>
   )

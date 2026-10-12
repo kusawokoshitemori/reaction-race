@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -10,6 +11,11 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	firebase "firebase.google.com/go/v4"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/identity"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/profile"
 )
 
 func main() {
@@ -30,6 +36,38 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	mux := http.NewServeMux()
+	projectID, databaseURL := os.Getenv("FIREBASE_PROJECT_ID"), os.Getenv("DATABASE_URL")
+	if projectID != "" && databaseURL != "" {
+		app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+		if err != nil {
+			return fmt.Errorf("initialize Firebase: %w", err)
+		}
+		authClient, err := app.Auth(ctx)
+		if err != nil {
+			return fmt.Errorf("initialize authentication: %w", err)
+		}
+		pool, err := pgxpool.New(ctx, databaseURL)
+		if err != nil {
+			return errors.New("invalid database configuration")
+		}
+		defer pool.Close()
+		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err = pool.Ping(pingCtx)
+		cancel()
+		if err != nil {
+			return errors.New("database connection failed")
+		}
+		api := http.NewServeMux()
+		tickets := identity.NewTickets()
+		api.HandleFunc("POST /api/ws-ticket", tickets.Issue)
+		api.Handle("/", profile.Handler(profile.Postgres{Pool: pool}, logger))
+		mux.Handle("/api/", identity.Middleware(authClient, api))
+	} else {
+		logger.Warn("authentication disabled: FIREBASE_PROJECT_ID and DATABASE_URL are required")
+		mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "authentication not configured", http.StatusServiceUnavailable)
+		})
+	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte("{\"status\":\"ok\"}\n"))

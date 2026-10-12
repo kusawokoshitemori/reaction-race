@@ -11,6 +11,46 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 
+const authState = vi.hoisted(() => {
+  type TestUser = { uid: string; isAnonymous: boolean }
+  const listeners = new Set<(user: TestUser | null) => void>()
+  let user: TestUser | null = null
+  return {
+    listeners,
+    get user() {
+      return user
+    },
+    emit(next: TestUser | null) {
+      user = next
+      listeners.forEach((callback) => callback(user))
+    },
+    reset() {
+      user = null
+      listeners.clear()
+    },
+  }
+})
+vi.mock('./auth', () => ({
+  observeUser: (callback: (user: typeof authState.user) => void) => {
+    authState.listeners.add(callback)
+    callback(authState.user)
+    return () => authState.listeners.delete(callback)
+  },
+  login: async () => authState.emit({ uid: 'registered', isAnonymous: false }),
+  loginGuest: async () => authState.emit({ uid: 'guest', isAnonymous: true }),
+  logout: async () => authState.emit(null),
+  fetchProfile: async (
+    user: { uid: string; isAnonymous: boolean },
+    displayName?: string,
+  ) => ({
+    uid: user.uid,
+    guest: user.isAnonymous,
+    displayName: displayName ?? 'テストプレイヤー',
+    provider: user.isAnonymous ? 'anonymous' : 'google.com',
+  }),
+}))
+beforeEach(() => authState.reset())
+
 beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => {
   cleanup()
@@ -53,12 +93,12 @@ test('初回は認証、ゲスト選択後はレートなしのタイトルを�
   await screen.findByRole('button', { name: 'ゲーム開始' })
 })
 
-test('仮ログイン後のレート・戦績とログアウト', async () => {
+test('ログイン後のレート・戦績とログアウト', async () => {
   render(<App />)
   await click('Googleで続ける')
   await screen.findByText('1,500')
   await userEvent.click(
-    screen.getByRole('link', { name: 'デモプレイヤーのアカウント' }),
+    screen.getByRole('link', { name: 'テストプレイヤーのアカウント' }),
   )
   await userEvent.click(await screen.findByRole('link', { name: '戦績を見る' }))
   await screen.findByRole('heading', { name: '戦績' })
@@ -118,8 +158,8 @@ test('直接アクセス・不正URL・再読み込み相当の再マウント�
   await screen.findByRole('heading', { name: '一瞬に、集中。' })
   view.unmount()
   render(<App />)
-  await waitFor(() => expect(window.location.hash).toBe('#/auth'))
-  expect(screen.getByRole('heading', { name: 'ログイン' })).toBeTruthy()
+  await waitFor(() => expect(window.location.hash).toBe('#/'))
+  expect(await screen.findByRole('button', { name: 'ゲーム開始' })).toBeTruthy()
 })
 
 test('遊び方を開くと試合は中断し、戻ったあと結果を確認できる', async () => {
@@ -208,4 +248,23 @@ test('ランキングは背景クリックやEscapeでは閉じず同じボタ�
       .getByRole('button', { name: 'ランキング' })
       .getAttribute('aria-expanded'),
   ).toBe('false')
+})
+
+test('ログイン済みで戦績へ直接アクセスすると認証復元後に戦績を表示する', async () => {
+  authState.emit({ uid: 'registered', isAnonymous: false })
+  window.history.replaceState(null, '', '#/history')
+  render(<App />)
+  expect(await screen.findByRole('heading', { name: '戦績' })).toBeTruthy()
+})
+
+test('別タブのログアウトで保護画面からログインへ戻る', async () => {
+  authState.emit({ uid: 'registered', isAnonymous: false })
+  render(<App />)
+  await screen.findByRole('button', { name: 'ゲーム開始' })
+  await go('/history')
+  await act(async () => authState.emit(null))
+  expect(
+    await screen.findByRole('button', { name: 'Googleで続ける' }),
+  ).toBeTruthy()
+  expect(window.location.hash).toBe('#/auth')
 })

@@ -1,38 +1,80 @@
-import type { LoginProvider } from './AuthPanel'
+import { useState } from 'react'
+import type { Profile } from '../auth'
+import { authErrorMessage } from '../authErrors'
 
-export default function AccountPanel({
-  provider,
-  onLogout,
-}: {
-  provider: LoginProvider | null
-  onLogout: () => void
-}) {
+type Props = {
+  profile: Profile
+  onLogout: () => Promise<unknown>
+  onRename: (name: string) => Promise<void>
+}
+export default function AccountPanel({ profile, onLogout, onRename }: Props) {
+  const [name, setName] = useState(profile.displayName)
+  const [pending, setPending] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  async function run(action: () => Promise<unknown>, success: string) {
+    if (pending) return
+    setPending(true)
+    setError('')
+    setMessage('')
+    try {
+      await action()
+      setMessage(success)
+    } catch (cause) {
+      setError(authErrorMessage(cause))
+    } finally {
+      setPending(false)
+    }
+  }
   return (
     <section className="account-card" aria-label="プロフィール">
       <div className="profile-heading">
         <span className="profile-avatar" aria-hidden="true">
-          D
+          {Array.from(profile.displayName)[0]}
         </span>
         <div>
           <p className="auth-eyebrow">PLAYER PROFILE</p>
-          <h2>デモプレイヤー</h2>
-          <p>{provider ?? 'デモ'}でログイン中</p>
+          <h2>{profile.displayName}</h2>
+          <p>
+            {profile.provider === 'google.com' ? 'Google' : 'X'}でログイン中
+          </p>
         </div>
       </div>
-      <dl className="account-stats">
-        <div>
-          <dt>レーティング</dt>
-          <dd>1,500</dd>
-        </div>
-        <div>
-          <dt>参加した試合</dt>
-          <dd>
-            12 <small>試合</small>
-          </dd>
-        </div>
-      </dl>
+      <form
+        className="profile-form"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const trimmed = name.trim()
+          if (!trimmed || Array.from(trimmed).length > 30) {
+            setError('表示名は1〜30文字で入力してください。')
+            return
+          }
+          void run(() => onRename(trimmed), '表示名を保存しました。')
+        }}
+      >
+        <label htmlFor="display-name">表示名</label>
+        <input
+          id="display-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+          disabled={pending}
+          autoComplete="nickname"
+          aria-describedby="display-name-hint"
+        />
+        <small id="display-name-hint">1〜30文字</small>
+        <button disabled={pending} type="submit">
+          表示名を保存
+        </button>
+      </form>
+      {message && <p role="status">{message}</p>}
+      {error && (
+        <p className="auth-error" role="alert">
+          {error}
+        </p>
+      )}
       <p className="auth-demo-note">
-        プロフィール・レート・試合数は仮データです。
+        ゲーム画面のレート・戦績は仮データです。対戦結果の保存は今後対応します。
       </p>
       <div className="account-actions">
         <a className="button" href="#/history">
@@ -44,7 +86,11 @@ export default function AccountPanel({
       </div>
       <div className="account-signout">
         <p>またいつでも、挑戦しよう。</p>
-        <button className="secondary" onClick={onLogout}>
+        <button
+          className="secondary"
+          disabled={pending}
+          onClick={() => run(onLogout, '')}
+        >
           ログアウト
         </button>
       </div>

@@ -3,6 +3,7 @@ import BackToTitle from './BackToTitle'
 type AppHeaderProps = {
   entered: boolean
   signedIn: boolean
+  displayName?: string
   showBack: boolean
   backLabel?: string
   onAccount: () => void
@@ -12,6 +13,7 @@ type AppHeaderProps = {
 export default function AppHeader({
   entered,
   signedIn,
+  displayName = 'プレイヤー',
   showBack,
   onBack,
   backLabel,
@@ -30,12 +32,12 @@ export default function AppHeader({
             href="#/auth"
             aria-label={
               signedIn
-                ? 'デモプレイヤーのアカウント'
+                ? `${displayName}のアカウント`
                 : 'ゲスト：ログイン・アカウント'
             }
           >
             <span className="player-dot" aria-hidden="true" />
-            {signedIn ? 'デモプレイヤー' : 'ゲスト'}
+            {signedIn ? displayName : 'ゲスト'}
             <span className="account-link-label">
               {signedIn ? 'アカウント' : 'ログイン'}
             </span>
