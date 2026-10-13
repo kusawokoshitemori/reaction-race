@@ -335,3 +335,30 @@ test('ログアウト後に古いプロフィール取得が完了しても認�
   expect(screen.queryByRole('button', { name: 'ゲーム開始' })).toBeNull()
   expect(screen.getByRole('button', { name: 'Googleで続ける' })).toBeTruthy()
 })
+
+for (const registered of [false, true]) {
+  test(`${registered ? '登録ユーザー' : 'ゲスト'}はヘッダーのアカウントをもう一度押して閉じられる`, async () => {
+    render(<App />)
+    await click(registered ? 'Googleで続ける' : 'ゲストで参加')
+    await screen.findByRole('button', { name: 'ゲーム開始' })
+    const accountName = registered
+      ? 'テストプレイヤーのアカウント'
+      : 'ゲスト：ログイン・アカウント'
+    await userEvent.click(screen.getByRole('link', { name: accountName }))
+    await screen.findByRole(registered ? 'textbox' : 'button', {
+      name: registered ? '表示名' : 'Googleで続ける',
+    })
+    expect(
+      screen
+        .getByRole('link', { name: accountName })
+        .getAttribute('aria-expanded'),
+    ).toBe('true')
+    await userEvent.click(screen.getByRole('link', { name: accountName }))
+    await screen.findByRole('button', { name: 'ゲーム開始' })
+    expect(
+      screen
+        .getByRole('link', { name: accountName })
+        .getAttribute('aria-expanded'),
+    ).toBe('false')
+  })
+}

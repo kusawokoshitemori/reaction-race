@@ -4,6 +4,7 @@ type AppHeaderProps = {
   entered: boolean
   signedIn: boolean
   displayName?: string
+  accountOpen: boolean
   showBack: boolean
   backLabel?: string
   onAccount: () => void
@@ -14,6 +15,7 @@ export default function AppHeader({
   entered,
   signedIn,
   displayName = 'プレイヤー',
+  accountOpen,
   showBack,
   onBack,
   backLabel,
@@ -29,7 +31,8 @@ export default function AppHeader({
           <a
             className="account-link"
             onClick={onAccount}
-            href="#/auth"
+            href={accountOpen ? '#/' : '#/auth'}
+            aria-expanded={accountOpen}
             aria-label={
               signedIn
                 ? `${displayName}のアカウント`

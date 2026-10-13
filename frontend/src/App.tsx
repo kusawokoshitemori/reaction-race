@@ -185,6 +185,7 @@ export default function App() {
         本文へ移動
       </a>
       <AppHeader
+        accountOpen={route === '/auth' && !helpOpen}
         entered={session.entered}
         signedIn={session.signedIn}
         displayName={identity.profile?.displayName}
