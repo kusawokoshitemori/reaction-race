@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 const sdk = vi.hoisted(() => {
   type User = { uid: string; isAnonymous: boolean }
@@ -36,10 +36,16 @@ vi.mock('firebase/auth', () => ({
   ...sdk,
   browserLocalPersistence: 'local',
   browserSessionPersistence: 'session',
+  inMemoryPersistence: 'memory',
   browserPopupRedirectResolver: {},
   GoogleAuthProvider: class {},
   TwitterAuthProvider: class {},
 }))
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
 const marker = 'reaction-race:guest-session'
 beforeEach(() => {
   vi.resetModules()
@@ -130,4 +136,50 @@ test('ログアウトでゲスト復元の印も解除する', async () => {
   const auth = await import('./auth')
   await auth.logout()
   expect(sessionStorage.getItem(marker)).toBeNull()
+})
+
+for (const failure of ['access', 'read', 'write']) {
+  test(`ストレージの${failure}が失敗してもゲストはメモリ保存で参加・再参加できる`, async () => {
+    const deny = () => {
+      throw new DOMException('blocked', 'SecurityError')
+    }
+    if (failure === 'access')
+      vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(deny)
+    if (failure === 'read')
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(deny)
+    if (failure === 'write')
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(deny)
+    const auth = await import('./auth')
+    const next = vi.fn()
+    const unsubscribe = auth.observeUser(next, vi.fn())
+    await auth.loginGuest()
+    sdk.emit({ uid: 'new-guest', isAnonymous: true })
+    expect(next).toHaveBeenLastCalledWith({
+      uid: 'new-guest',
+      isAnonymous: true,
+    })
+    expect(sdk.signOut).not.toHaveBeenCalled()
+    expect(sdk.setPersistence).toHaveBeenLastCalledWith(sdk.client, 'memory')
+    await auth.loginGuest()
+    expect(sdk.signInAnonymously).toHaveBeenCalledTimes(1)
+    await auth.logout()
+    expect(next).toHaveBeenLastCalledWith(null)
+    unsubscribe()
+  })
+}
+
+test('マーカー削除が失敗しても登録ユーザーの通知・ログイン・ログアウトを妨げない', async () => {
+  sessionStorage.setItem(marker, '1')
+  const auth = await import('./auth')
+  vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+    throw new DOMException('blocked', 'SecurityError')
+  })
+  const next = vi.fn()
+  const unsubscribe = auth.observeUser(next, vi.fn())
+  const registered = { uid: 'registered', isAnonymous: false }
+  expect(() => sdk.emit(registered)).not.toThrow()
+  expect(next).toHaveBeenLastCalledWith(registered)
+  await expect(auth.login('Google')).resolves.toBeDefined()
+  await expect(auth.logout()).resolves.toBeUndefined()
+  unsubscribe()
 })

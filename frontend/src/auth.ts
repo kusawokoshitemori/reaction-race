@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app'
 import {
   browserLocalPersistence,
   browserSessionPersistence,
+  inMemoryPersistence,
   setPersistence,
   GoogleAuthProvider,
   initializeAuth,
@@ -47,10 +48,30 @@ const configured = Object.values(config).every(
 )
 // This marker chooses which Firebase storage to restore; it is not proof of identity.
 const guestSessionKey = 'reaction-race:guest-session'
-const restoreGuest = sessionStorage.getItem(guestSessionKey) === '1'
+let guestStorageAvailable = true
+function readGuestMarker() {
+  try {
+    return sessionStorage.getItem(guestSessionKey) === '1'
+  } catch {
+    guestStorageAvailable = false
+    return false
+  }
+}
+let guestSelected = readGuestMarker()
+function writeGuestMarker(selected: boolean) {
+  // Keep the selection in memory too: a new guest must not be mistaken for
+  // an old persisted guest merely because browser storage is unavailable.
+  guestSelected = selected
+  try {
+    if (selected) sessionStorage.setItem(guestSessionKey, '1')
+    else sessionStorage.removeItem(guestSessionKey)
+  } catch {
+    guestStorageAvailable = false
+  }
+}
 const auth = configured
   ? initializeAuth(initializeApp(config), {
-      persistence: restoreGuest
+      persistence: guestSelected
         ? browserSessionPersistence
         : browserLocalPersistence,
       popupRedirectResolver: browserPopupRedirectResolver,
@@ -75,14 +96,11 @@ export function observeUser(
     client,
     (user) => {
       // Discard anonymous sessions saved by the previous local-persistence policy.
-      if (
-        user?.isAnonymous &&
-        sessionStorage.getItem(guestSessionKey) !== '1'
-      ) {
+      if (user?.isAnonymous && !guestSelected) {
         void signOut(client).catch(error)
         return
       }
-      if (user && !user.isAnonymous) sessionStorage.removeItem(guestSessionKey)
+      if (user && !user.isAnonymous) writeGuestMarker(false)
       next(user)
     },
     error,
@@ -100,19 +118,22 @@ export function login(provider: LoginProvider) {
   ).then(async (result) => {
     // Keep the guest session tab-scoped until provider login succeeds.
     await setPersistence(client, browserLocalPersistence)
-    sessionStorage.removeItem(guestSessionKey)
+    writeGuestMarker(false)
     return result
   })
 }
 export async function loginGuest() {
   const client = requireAuth()
-  sessionStorage.setItem(guestSessionKey, '1')
-  await setPersistence(client, browserSessionPersistence)
+  writeGuestMarker(true)
+  await setPersistence(
+    client,
+    guestStorageAvailable ? browserSessionPersistence : inMemoryPersistence,
+  )
   if (!client.currentUser?.isAnonymous) await signInAnonymously(client)
 }
 export async function logout() {
   await signOut(requireAuth())
-  sessionStorage.removeItem(guestSessionKey)
+  writeGuestMarker(false)
 }
 
 export async function fetchProfile(
