@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/dbdiagnostic"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/identity"
 )
 
@@ -65,7 +66,7 @@ func Handler(store Store, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/me", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := identity.FromContext(r.Context())
 		if !ok {
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		result := Profile{UID: p.UID, Guest: p.Guest, Provider: p.Provider, DisplayName: "ゲスト"}
@@ -77,8 +78,8 @@ func Handler(store Store, logger *slog.Logger) http.Handler {
 			var err error
 			result.DisplayName, err = store.GetOrCreate(r.Context(), p.UID, name)
 			if err != nil {
-				logger.Error("profile read failed")
-				http.Error(w, "profile unavailable", 503)
+				logger.Error("profile read failed", "error", dbdiagnostic.Safe(err))
+				http.Error(w, "profile unavailable", http.StatusServiceUnavailable)
 				return
 			}
 		}
@@ -88,11 +89,11 @@ func Handler(store Store, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("PATCH /api/me", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := identity.FromContext(r.Context())
 		if !ok {
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		if p.Guest {
-			http.Error(w, "registered account required", 403)
+			http.Error(w, "registered account required", http.StatusForbidden)
 			return
 		}
 		var body struct {
@@ -101,26 +102,26 @@ func Handler(store Store, logger *slog.Logger) http.Handler {
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&body); err != nil {
-			http.Error(w, "invalid profile", 400)
+			http.Error(w, "invalid profile", http.StatusBadRequest)
 			return
 		}
 		if err := decoder.Decode(new(any)); err != io.EOF {
-			http.Error(w, "invalid profile", 400)
+			http.Error(w, "invalid profile", http.StatusBadRequest)
 			return
 		}
 		body.DisplayName = strings.TrimSpace(body.DisplayName)
 		if !ValidName(body.DisplayName) {
-			http.Error(w, "display name must be 1-30 characters", 400)
+			http.Error(w, "display name must be 1-30 characters", http.StatusBadRequest)
 			return
 		}
 		if _, err := store.GetOrCreate(r.Context(), p.UID, body.DisplayName); err != nil {
-			logger.Error("profile create failed")
-			http.Error(w, "profile unavailable", 503)
+			logger.Error("profile create failed", "error", dbdiagnostic.Safe(err))
+			http.Error(w, "profile unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		if err := store.Rename(r.Context(), p.UID, body.DisplayName); err != nil {
-			logger.Error("profile update failed")
-			http.Error(w, "profile unavailable", 503)
+			logger.Error("profile update failed", "error", dbdiagnostic.Safe(err))
+			http.Error(w, "profile unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")

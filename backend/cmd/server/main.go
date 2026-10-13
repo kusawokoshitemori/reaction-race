@@ -14,6 +14,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/dbdiagnostic"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/identity"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/profile"
 )
@@ -48,18 +49,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		}
 		pool, err := pgxpool.New(ctx, databaseURL)
 		if err != nil {
-			return errors.New("invalid database configuration")
+			return fmt.Errorf("configure database: %w", dbdiagnostic.Safe(err))
 		}
 		defer pool.Close()
 		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err = pool.Ping(pingCtx)
 		cancel()
 		if err != nil {
-			return errors.New("database connection failed")
+			return fmt.Errorf("connect database: %w", dbdiagnostic.Safe(err))
 		}
 		api := http.NewServeMux()
-		tickets := identity.NewTickets()
-		api.HandleFunc("POST /api/ws-ticket", tickets.Issue)
 		api.Handle("/", profile.Handler(profile.Postgres{Pool: pool}, logger))
 		mux.Handle("/api/", identity.Middleware(authClient, api))
 	} else {

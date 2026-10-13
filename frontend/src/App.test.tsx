@@ -10,6 +10,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { fetchProfile } from './auth'
 
 const authState = vi.hoisted(() => {
   type TestUser = { uid: string; isAnonymous: boolean }
@@ -37,19 +38,27 @@ vi.mock('./auth', () => ({
     return () => authState.listeners.delete(callback)
   },
   login: async () => authState.emit({ uid: 'registered', isAnonymous: false }),
-  loginGuest: async () => authState.emit({ uid: 'guest', isAnonymous: true }),
+  loginGuest: async () => {
+    if (!authState.user?.isAnonymous)
+      authState.emit({ uid: 'guest', isAnonymous: true })
+  },
   logout: async () => authState.emit(null),
-  fetchProfile: async (
-    user: { uid: string; isAnonymous: boolean },
-    displayName?: string,
-  ) => ({
-    uid: user.uid,
-    guest: user.isAnonymous,
-    displayName: displayName ?? 'テストプレイヤー',
-    provider: user.isAnonymous ? 'anonymous' : 'google.com',
-  }),
+  fetchProfile: vi.fn(
+    async (
+      user: { uid: string; isAnonymous: boolean },
+      displayName?: string,
+    ) => ({
+      uid: user.uid,
+      guest: user.isAnonymous,
+      displayName: displayName ?? 'テストプレイヤー',
+      provider: user.isAnonymous ? 'anonymous' : 'google.com',
+    }),
+  ),
 }))
-beforeEach(() => authState.reset())
+beforeEach(() => {
+  authState.reset()
+  vi.mocked(fetchProfile).mockReset()
+})
 
 beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => {
@@ -267,4 +276,62 @@ test('別タブのログアウトで保護画面からログインへ戻る', as
     await screen.findByRole('button', { name: 'Googleで続ける' }),
   ).toBeTruthy()
   expect(window.location.hash).toBe('#/auth')
+})
+
+test('復元済みゲストがゲストで参加を押すとタイトルへ戻る', async () => {
+  authState.emit({ uid: 'guest', isAnonymous: true })
+  render(<App />)
+  await screen.findByRole('button', { name: 'ゲーム開始' })
+  await go('/auth')
+  await click('ゲストで参加')
+  await screen.findByRole('button', { name: 'ゲーム開始' })
+})
+
+test('同じユーザーのトークン更新はプロフィールを再取得せずプレイ画面を保つ', async () => {
+  await enter()
+  await click('ゲーム開始')
+  const heading = screen.getByRole('heading', { name: '一瞬に、集中。' })
+  vi.mocked(fetchProfile).mockClear()
+  await act(async () => authState.emit({ uid: 'guest', isAnonymous: true }))
+  expect(fetchProfile).not.toHaveBeenCalled()
+  expect(screen.getByRole('heading', { name: '一瞬に、集中。' })).toBe(heading)
+  expect(window.location.hash).toBe('#/game')
+  await act(async () => authState.emit({ uid: 'other', isAnonymous: false }))
+  expect(fetchProfile).toHaveBeenCalledTimes(1)
+  await screen.findByRole('link', { name: 'テストプレイヤーのアカウント' })
+})
+
+test('初回のプロフィール取得が失敗しても再試行できる', async () => {
+  vi.mocked(fetchProfile).mockRejectedValueOnce({ code: 'api/unavailable' })
+  authState.emit({ uid: 'registered', isAnonymous: false })
+  render(<App />)
+  await screen.findByRole('alert')
+  await click('再試行')
+  await screen.findByRole('button', { name: 'ゲーム開始' })
+  expect(fetchProfile).toHaveBeenCalledTimes(2)
+})
+
+test('ログアウト後に古いプロフィール取得が完了しても認証を復元しない', async () => {
+  let complete:
+    ((value: Awaited<ReturnType<typeof fetchProfile>>) => void) | undefined
+  vi.mocked(fetchProfile).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve
+      }),
+  )
+  authState.emit({ uid: 'registered', isAnonymous: false })
+  render(<App />)
+  await act(async () => authState.emit(null))
+  await screen.findByRole('button', { name: 'Googleで続ける' })
+  await act(async () =>
+    complete?.({
+      uid: 'registered',
+      guest: false,
+      displayName: '古いユーザー',
+      provider: 'google.com',
+    }),
+  )
+  expect(screen.queryByRole('button', { name: 'ゲーム開始' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Googleで続ける' })).toBeTruthy()
 })

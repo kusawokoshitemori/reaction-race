@@ -281,7 +281,10 @@ export default function App() {
             ) : (
               <AuthPanel
                 onLogin={login}
-                onGuest={loginGuest}
+                onGuest={async () => {
+                  await loginGuest()
+                  if (identity.profile?.guest) act('guest', '/')
+                }}
                 disabled={identity.loading}
               />
             ))}

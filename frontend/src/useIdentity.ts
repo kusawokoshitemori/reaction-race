@@ -13,10 +13,16 @@ export function useIdentity() {
   const revision = useRef({ value: 0 })
   useEffect(() => {
     const sequence = revision.current
+    // A token refresh does not change the profile. Re-fetch only when the
+    // identity changes; a new subscription also allows explicit retry.
+    let loadedIdentity: string | null = null
     const unsubscribe = observeUser(
       async (nextUser) => {
-        const current = ++sequence.value
         setUser(nextUser)
+        const key = nextUser ? `${nextUser.uid}:${nextUser.isAnonymous}` : null
+        if (key !== null && key === loadedIdentity) return
+        loadedIdentity = null
+        const current = ++sequence.value
         setProfile((previous) =>
           previous?.uid === nextUser?.uid ? previous : null,
         )
@@ -24,7 +30,10 @@ export function useIdentity() {
         setError('')
         try {
           const nextProfile = nextUser ? await fetchProfile(nextUser) : null
-          if (current === sequence.value) setProfile(nextProfile)
+          if (current === sequence.value) {
+            loadedIdentity = key
+            setProfile(nextProfile)
+          }
         } catch (cause) {
           if (current === sequence.value) {
             setProfile(null)
@@ -36,6 +45,7 @@ export function useIdentity() {
       },
       (cause) => {
         sequence.value++
+        loadedIdentity = null
         setProfile(null)
         setError(authErrorMessage(cause))
         setLoading(false)

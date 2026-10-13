@@ -19,6 +19,21 @@ export type Profile = {
   guest: boolean
   provider: string
 }
+function isProfile(value: unknown): value is Profile {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'uid' in value &&
+    typeof value.uid === 'string' &&
+    'displayName' in value &&
+    typeof value.displayName === 'string' &&
+    'guest' in value &&
+    typeof value.guest === 'boolean' &&
+    'provider' in value &&
+    typeof value.provider === 'string'
+  )
+}
+
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -72,7 +87,7 @@ export function logout() {
 }
 
 export async function fetchProfile(
-  user: User,
+  user: Pick<User, 'uid' | 'isAnonymous' | 'getIdToken'>,
   displayName?: string,
 ): Promise<Profile> {
   async function request(forceRefresh: boolean) {
@@ -94,11 +109,11 @@ export async function fetchProfile(
     throw {
       code: response.status === 401 ? 'api/unauthorized' : 'api/unavailable',
     }
-  const profile: Profile = await response.json()
+  const profile: unknown = await response.json()
   if (
+    !isProfile(profile) ||
     profile.uid !== user.uid ||
-    profile.guest !== user.isAnonymous ||
-    typeof profile.displayName !== 'string'
+    profile.guest !== user.isAnonymous
   )
     throw { code: 'api/unavailable' }
   return profile
