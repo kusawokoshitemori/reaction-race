@@ -1260,3 +1260,19 @@ form label {
     font-size: 10px;
   }
 }
+
+.profile-form {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0;
+}
+.profile-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  font: inherit;
+  color: inherit;
+  border: 1px solid #b6b4ab;
+  border-radius: 8px;
+  background: #fff;
+}
