@@ -1,6 +1,6 @@
 import { test, assert } from 'vitest'
 import type { Room } from './lobby'
-import { parseRoom, remainingSeconds, closeMessage } from './lobby'
+import { parseRoom, remainingSeconds, closeMessage, parseTicket } from './lobby'
 const participant = { id: 'a', name: 'ゲスト', bot: false, guest: true }
 const room: Room = {
   type: 'room',
@@ -44,4 +44,22 @@ test('二重参加と切断を利用者へ説明する', () => {
   assert.match(closeMessage('already_connected'), /別のタブ/)
   assert.match(closeMessage('room_closed'), /終了/)
   assert.match(closeMessage(''), /再試行/)
+})
+
+test('チケットをunknownから検証し、不正なレスポンスを拒否する', () => {
+  assert.equal(parseTicket({ ticket: 'a'.repeat(64) }), 'a'.repeat(64))
+  for (const value of [
+    null,
+    [],
+    'ticket',
+    {},
+    { ticket: 123 },
+    { ticket: 'a'.repeat(63) },
+    { ticket: 'a'.repeat(65) },
+    { ticket: 'z'.repeat(64) },
+  ]) {
+    assert.throws(() => parseTicket(value))
+  }
+  assert.match(closeMessage('already_connected'), /直前の接続/)
+  assert.match(closeMessage('already_connected'), /しばらく待って/)
 })

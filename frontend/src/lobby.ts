@@ -71,8 +71,18 @@ export function remainingSeconds(room: Room, elapsedMs: number) {
 }
 export function closeMessage(reason: string) {
   if (reason === 'already_connected')
-    return '別のタブで参加中です。そのタブを閉じてから再試行してください。'
+    return '別のタブまたは直前の接続が残っています。別のタブで参加中なら退出し、回線が切れた場合はしばらく待って再試行してください。'
   if (reason === 'room_closed')
     return '待機室の接続が終了しました。もう一度参加できます。'
   return '接続が切れました。通信環境を確認して再試行してください。'
+}
+
+export function parseTicket(data: unknown): string {
+  if (
+    !isRecord(data) ||
+    typeof data.ticket !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(data.ticket)
+  )
+    throw new Error('ticket invalid')
+  return data.ticket
 }

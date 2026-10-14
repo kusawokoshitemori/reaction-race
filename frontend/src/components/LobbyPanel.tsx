@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
-import { closeMessage, parseRoom, remainingSeconds } from '../lobby'
+import {
+  closeMessage,
+  parseRoom,
+  parseTicket,
+  remainingSeconds,
+} from '../lobby'
 import type { LobbyState } from '../lobby'
 import './LobbyPanel.css'
 
@@ -11,6 +16,10 @@ export default function LobbyPanel({
   user: Pick<User, 'getIdToken'>
   onLeave: () => void
 }) {
+  const userRef = useRef(user)
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
   const [attempt, setAttempt] = useState(0)
   const [state, setState] = useState<LobbyState>({
     status: 'connecting',
@@ -37,7 +46,7 @@ export default function LobbyPanel({
       }, 15000)
       try {
         async function ticket(refresh: boolean) {
-          const token = await user.getIdToken(refresh)
+          const token = await userRef.current.getIdToken(refresh)
           if (disposed || abort.signal.aborted) throw new Error('canceled')
           return fetch('/api/ws-ticket', {
             method: 'POST',
@@ -48,16 +57,12 @@ export default function LobbyPanel({
         let response = await ticket(false)
         if (response.status === 401) response = await ticket(true)
         if (!response.ok) throw new Error('ticket failed')
-        const data = await response.json()
+        const data: unknown = await response.json()
         if (disposed || abort.signal.aborted) return
-        if (
-          typeof data.ticket !== 'string' ||
-          !/^[a-f0-9]{64}$/.test(data.ticket)
-        )
-          throw new Error('ticket invalid')
+        const value = parseTicket(data)
         const url = new URL('/api/lobby', window.location.href)
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-        url.searchParams.set('ticket', data.ticket)
+        url.searchParams.set('ticket', value)
         socket = new WebSocket(url)
         socket.onopen = () => {
           if (!disposed) socket?.send(JSON.stringify({ type: 'join' }))
@@ -95,7 +100,7 @@ export default function LobbyPanel({
         socket.send(JSON.stringify({ type: 'leave' }))
       socket?.close()
     }
-  }, [user, attempt])
+  }, [attempt])
   const room = state.room
   const locked = room?.phase === 'locked'
   const humans = room?.participants.filter((p) => !p.bot).length ?? 0

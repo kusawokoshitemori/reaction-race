@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event'
 import {
   act,
   cleanup,
@@ -93,4 +94,40 @@ test('二重参加拒否と再試行を処理する', async () => {
   fireEvent.click(screen.getByRole('button', { name: '再試行' }))
   await waitFor(() => expect(Socket.instances).toHaveLength(2))
   expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('同一ユーザーの参照更新では退出せず、再試行は最新のトークン取得を使う', async () => {
+  const view = render(<LobbyPanel user={user} onLeave={vi.fn()} />)
+  const socket = await connection()
+  const updated = { getIdToken: vi.fn(async () => 'updated-token') }
+  view.rerender(<LobbyPanel user={updated} onLeave={vi.fn()} />)
+  expect(Socket.instances).toHaveLength(1)
+  expect(socket.close).not.toHaveBeenCalled()
+  expect(socket.send).not.toHaveBeenCalledWith('{"type":"leave"}')
+  act(() => {
+    socket.readyState = 3
+    socket.onclose?.({ reason: '' })
+  })
+  fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+  await waitFor(() => expect(Socket.instances).toHaveLength(2))
+  expect(updated.getIdToken).toHaveBeenCalledWith(false)
+  expect(fetch).toHaveBeenLastCalledWith(
+    '/api/ws-ticket',
+    expect.objectContaining({
+      headers: { Authorization: 'Bearer updated-token' },
+    }),
+  )
+})
+
+test('キーボードのTabとEnterで退出を実行できる', async () => {
+  const onLeave = vi.fn()
+  render(<LobbyPanel user={user} onLeave={onLeave} />)
+  await connection()
+  const keyboard = userEvent.setup()
+  await keyboard.tab()
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: '退出してタイトルへ' }),
+  )
+  await keyboard.keyboard('{Enter}')
+  expect(onLeave).toHaveBeenCalledTimes(1)
 })
