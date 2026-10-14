@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/dbdiagnostic"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/identity"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/lobby"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/profile"
 )
 
@@ -59,6 +60,15 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			return fmt.Errorf("connect database: %w", dbdiagnostic.Safe(err))
 		}
 		api := http.NewServeMux()
+		tickets := identity.NewTickets()
+		rooms := lobby.New(10*time.Second, 2*time.Minute, logger)
+		defer rooms.Close()
+		origin := os.Getenv("APP_ORIGIN")
+		if origin == "" {
+			logger.Warn("WebSocket disabled: APP_ORIGIN is required")
+		}
+		mux.Handle("/api/lobby", tickets.UpgradeGuard(origin, lobby.Handler(rooms, profile.Postgres{Pool: pool}, origin)))
+		api.HandleFunc("POST /api/ws-ticket", tickets.Issue)
 		api.Handle("/", profile.Handler(profile.Postgres{Pool: pool}, logger))
 		mux.Handle("/api/", identity.Middleware(authClient, api))
 	} else {

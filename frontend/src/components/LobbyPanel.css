@@ -1,0 +1,132 @@
+.lobby-panel {
+  color: #263e35;
+  max-width: 860px;
+  margin: auto;
+}
+.lobby-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 4px 0 20px;
+}
+.lobby-card {
+  text-align: center;
+  border: 1px solid #a3ad93;
+  border-radius: 12px;
+  padding: 36px clamp(18px, 5vw, 64px);
+  background: linear-gradient(150deg, #f8f7e9, #dce6ce);
+}
+.lobby-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: #59734b;
+}
+.lobby-card h2 {
+  font-family: 'Yu Mincho', serif;
+  font-size: clamp(21px, 4vw, 32px);
+  margin: 18px 0;
+}
+.lobby-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.lobby-count strong {
+  font:
+    700 76px/1.2 Georgia,
+    serif;
+}
+.lobby-count span {
+  color: #647359;
+}
+.lobby-countdown {
+  font-weight: 700;
+}
+.lobby-countdown small {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 10px;
+}
+.lobby-note {
+  padding: 16px;
+  background: #ffffff80;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.lobby-seats {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 7px;
+  max-width: 360px;
+  margin: 28px auto 14px;
+}
+.lobby-seats span {
+  aspect-ratio: 1;
+  border: 1px solid #a1ae94;
+  border-radius: 4px;
+  background: #f7f8ee;
+}
+.lobby-seats .human {
+  background: #385d46;
+  border-color: #385d46;
+}
+.lobby-seats .bot {
+  background: #b7bd94;
+  border-color: #939e72;
+}
+.lobby-legend {
+  font-size: 11px;
+}
+.lobby-legend span {
+  color: #667049;
+}
+.lobby-card details {
+  margin-top: 24px;
+  text-align: left;
+  font-size: 13px;
+}
+.lobby-card summary {
+  cursor: pointer;
+  padding: 12px;
+}
+.lobby-card ul {
+  list-style: none;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.lobby-card li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #b6c2a9;
+  overflow-wrap: anywhere;
+}
+.lobby-card li span {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.lobby-error {
+  background: #f8e7df;
+  color: #873e2d;
+  padding: 12px;
+  border-radius: 6px;
+}
+.lobby-leave {
+  display: block;
+  margin: 24px auto 0;
+}
+@media (max-width: 480px) {
+  .lobby-card {
+    padding: 24px 16px;
+  }
+  .lobby-topline {
+    font-size: 9px;
+  }
+}

@@ -1,7 +1,6 @@
 import {
   act,
   cleanup,
-  fireEvent,
   render,
   screen,
   waitFor,
@@ -11,6 +10,15 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { fetchProfile } from './auth'
+
+vi.mock('./components/LobbyPanel', () => ({
+  default: ({ onLeave }: { onLeave: () => void }) => (
+    <section>
+      <h2>一瞬を競う、仲間を待つ。</h2>
+      <button onClick={onLeave}>退出してタイトルへ</button>
+    </section>
+  ),
+}))
 
 const authState = vi.hoisted(() => {
   type TestUser = { uid: string; isAnonymous: boolean }
@@ -120,41 +128,15 @@ test('ログイン後のレート・戦績とログアウト', async () => {
   expect(screen.getByRole('heading', { name: 'ログイン' })).toBeTruthy()
 })
 
-for (const outcome of ['success', 'flying', 'no-record']) {
-  test(`${outcome}の結果から再戦できる`, async () => {
-    await enter()
-    await click('ゲーム開始')
-    vi.useFakeTimers()
-    vi.spyOn(Math, 'random').mockReturnValue(0)
-    fireEvent.click(screen.getByRole('button', { name: /構える/ }))
-    if (outcome !== 'flying') act(() => vi.advanceTimersByTime(2000))
-    if (outcome === 'no-record') act(() => vi.advanceTimersByTime(3000))
-    else {
-      fireEvent.keyDown(window, { code: 'Space' })
-      act(() => vi.advanceTimersByTime(1300))
-    }
-    vi.useRealTimers()
-    vi.restoreAllMocks()
-    await click('結果を見る')
-    await screen.findByRole('heading', { name: '試合結果' })
-    const summary = screen.getByRole('region', { name: 'あなたの結果' })
-    expect(summary.textContent).toContain(
-      outcome === 'success'
-        ? '成功'
-        : outcome === 'flying'
-          ? 'フライング'
-          : '未入力',
-    )
-    await click('再戦')
-    await screen.findByRole('heading', { name: '一瞬に、集中。' })
-    await click('タイトルに戻る')
-    await screen.findByRole('button', { name: 'ゲーム開始' })
-    await go('/game')
-    expect(screen.getByText(/参加中の試合がありません/)).toBeTruthy()
-    await go('/result')
-    expect(screen.getByText(/表示できる試合結果がありません/)).toBeTruthy()
-  })
-}
+test('待機室から退出するとタイトルに戻り、結果は作らない', async () => {
+  await enter()
+  await click('ゲーム開始')
+  await screen.findByRole('heading', { name: '一瞬を競う、仲間を待つ。' })
+  await click('退出してタイトルへ')
+  await screen.findByRole('button', { name: 'ゲーム開始' })
+  await go('/result')
+  expect(screen.getByText(/表示できる試合結果がありません/)).toBeTruthy()
+})
 
 test('直接アクセス・不正URL・再読み込み相当の再マウントを制御する', async () => {
   window.history.replaceState(null, '', '#/game')
@@ -164,17 +146,16 @@ test('直接アクセス・不正URL・再読み込み相当の再マウント�
   await go('/unknown')
   expect(screen.getByText(/存在しない画面/)).toBeTruthy()
   await click('ゲーム開始')
-  await screen.findByRole('heading', { name: '一瞬に、集中。' })
+  await screen.findByRole('heading', { name: '一瞬を競う、仲間を待つ。' })
   view.unmount()
   render(<App />)
   await waitFor(() => expect(window.location.hash).toBe('#/'))
   expect(await screen.findByRole('button', { name: 'ゲーム開始' })).toBeTruthy()
 })
 
-test('遊び方を開くと試合は中断し、戻ったあと結果を確認できる', async () => {
+test('遊び方から待機室へ戻れる', async () => {
   await enter()
   await click('ゲーム開始')
-  await click('構える')
   for (const close of ['遊び方', '元の画面に戻る']) {
     await click('遊び方')
     expect(
@@ -183,7 +164,9 @@ test('遊び方を開くと試合は中断し、戻ったあと結果を確認�
     expect(screen.queryByRole('heading', { name: '中断' })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
     await click(close)
-    expect(screen.getByRole('heading', { name: '中断' })).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: '一瞬を競う、仲間を待つ。' }),
+    ).toBeTruthy()
     expect(window.location.hash).toBe('#/game')
   }
 })
@@ -290,11 +273,15 @@ test('復元済みゲストがゲストで参加を押すとタイトルへ戻�
 test('同じユーザーのトークン更新はプロフィールを再取得せずプレイ画面を保つ', async () => {
   await enter()
   await click('ゲーム開始')
-  const heading = screen.getByRole('heading', { name: '一瞬に、集中。' })
+  const heading = screen.getByRole('heading', {
+    name: '一瞬を競う、仲間を待つ。',
+  })
   vi.mocked(fetchProfile).mockClear()
   await act(async () => authState.emit({ uid: 'guest', isAnonymous: true }))
   expect(fetchProfile).not.toHaveBeenCalled()
-  expect(screen.getByRole('heading', { name: '一瞬に、集中。' })).toBe(heading)
+  expect(
+    screen.getByRole('heading', { name: '一瞬を競う、仲間を待つ。' }),
+  ).toBe(heading)
   expect(window.location.hash).toBe('#/game')
   await act(async () => authState.emit({ uid: 'other', isAnonymous: false }))
   expect(fetchProfile).toHaveBeenCalledTimes(1)
