@@ -1,0 +1,120 @@
+package lobby
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/identity"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/profile"
+)
+
+// Handler must be wrapped in Tickets.UpgradeGuard. No UID or name is accepted from messages.
+func Handler(manager *Manager, store profile.Store, origin string) http.Handler {
+	upgrade := websocket.Upgrader{HandshakeTimeout: 5 * time.Second, CheckOrigin: func(r *http.Request) bool { return origin != "" && r.Header.Get("Origin") == origin }}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := identity.FromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", 401)
+			return
+		}
+		name := "ゲスト"
+		if !p.Guest {
+			name = strings.TrimSpace(p.Name)
+			if !profile.ValidName(name) {
+				name = "プレイヤー"
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			var err error
+			name, err = store.GetOrCreate(ctx, p.UID, name)
+			cancel()
+			if err != nil {
+				http.Error(w, "profile unavailable", 503)
+				return
+			}
+		}
+		c, err := upgrade.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		c.SetReadLimit(1024)
+		_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
+		c.SetPongHandler(func(string) error { return c.SetReadDeadline(time.Now().Add(45 * time.Second)) })
+		if readCommand(c) != "join" {
+			closeSocket(c, 1008, "join_required")
+			return
+		}
+		s, err := manager.Join(p.UID, name, p.Guest)
+		if err != nil {
+			closeSocket(c, 1008, err.Error())
+			return
+		}
+		defer manager.Leave(s, false)
+		_ = c.SetReadDeadline(time.Now().Add(45 * time.Second))
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			defer c.Close()
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case snapshot, ok := <-s.Updates:
+					if !ok {
+						closeSocket(c, 1000, "room_closed")
+						return
+					}
+					_ = c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+					if c.WriteJSON(snapshot) != nil {
+						return
+					}
+				case <-ticker.C:
+					if c.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)) != nil {
+						return
+					}
+				case <-r.Context().Done():
+					return
+				}
+			}
+		}()
+		for {
+			command := readCommand(c)
+			if command == "leave" {
+				manager.Leave(s, true)
+				break
+			}
+			if command == "" {
+				break
+			}
+			closeSocket(c, 1008, "invalid_message")
+			break
+		}
+		manager.Leave(s, false)
+		_ = c.Close()
+		<-done
+	})
+}
+func readCommand(c *websocket.Conn) string {
+	kind, data, err := c.ReadMessage()
+	if err != nil || kind != websocket.TextMessage {
+		return ""
+	}
+	var msg struct {
+		Type string `json:"type"`
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	if d.Decode(&msg) != nil || d.Decode(new(any)) != io.EOF {
+		return "invalid"
+	}
+	return msg.Type
+}
+func closeSocket(c *websocket.Conn, code int, reason string) {
+	_ = c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(time.Second))
+}

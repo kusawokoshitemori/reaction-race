@@ -13,7 +13,7 @@ import HelpContent from './components/HelpContent'
 import RatingPanel from './components/RatingPanel'
 import RankingPanel from './components/RankingPanel'
 import ResultPanel from './components/ResultPanel'
-import GamePanel from './components/GamePanel'
+import LobbyPanel from './components/LobbyPanel'
 import { createDemoResult } from './result'
 import { demoRanking } from './ranking'
 import './App.css'
@@ -250,14 +250,11 @@ export default function App() {
               )}
             </section>
           )}
-          {route === '/game' && (
-            <GamePanel
-              phase={session.phase}
-              outcome={session.outcome}
-              active={!helpOpen}
-              onAction={act}
-              onRecord={setReactionMs}
-              onResult={() => act('finish', '/result')}
+          {route === '/game' && identity.user && (
+            <LobbyPanel
+              key={identity.user.uid}
+              user={identity.user}
+              onLeave={() => act('leave', '/')}
             />
           )}
           {route === '/result' && session.result && (
