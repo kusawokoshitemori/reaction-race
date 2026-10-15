@@ -11,12 +11,11 @@ import AppHeader from './components/AppHeader'
 import AppFooter from './components/AppFooter'
 import HelpContent from './components/HelpContent'
 import RatingPanel from './components/RatingPanel'
-import RankingPanel from './components/RankingPanel'
+import LiveRankingPanel from './components/LiveRankingPanel'
 import SavedResultPanel from './components/SavedResultPanel'
 import LobbyPanel from './components/LobbyPanel'
 import { serverResult } from './result'
 import type { Room } from './lobby'
-import { demoRanking } from './ranking'
 import './App.css'
 
 const labels: Record<Route, string> = {
@@ -225,12 +224,12 @@ export default function App() {
             <HelpContent />
           </div>
         )}
-        {rankingOpen && !helpOpen && (
-          <RankingPanel
-            state={{ status: 'success', entries: demoRanking }}
-            currentPlayerId={session.signedIn ? 'demo-player' : null}
+        {rankingOpen && !helpOpen && identity.user && (
+          <LiveRankingPanel
+            key={identity.user.uid}
+            user={identity.user}
+            guest={!session.signedIn}
             headingRef={rankingHeading}
-            onRetry={() => log('ranking-retry', { source: 'demo' })}
           />
         )}
         <div className="page-content" hidden={helpOpen || rankingOpen}>
@@ -309,8 +308,8 @@ export default function App() {
                 disabled={identity.loading}
               />
             ))}
-          {route === '/history' && (
-            <HistoryPanel result={match?.result ?? null} />
+          {route === '/history' && identity.user && (
+            <HistoryPanel key={identity.user.uid} user={identity.user} />
           )}
         </div>
       </main>

@@ -1,6 +1,11 @@
 import type { Ref } from 'react'
 
-export type RankingEntry = { id: string; name: string; rating: number }
+export type RankingEntry = {
+  id: string
+  name: string
+  rating: number
+  rank?: number
+}
 export type RankingState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
@@ -39,9 +44,9 @@ export default function RankingPanel({
           : state.status === 'success' && entries.length > 0
             ? ownIndex < 0
               ? 'あなたは50位以内に入っていません'
-              : `あなたは ${ownIndex + 1} 位`
+              : `あなたは ${entries[ownIndex].rank ?? ownIndex + 1} 位`
             : '総合レートランキング'}
-        <small>表示確認用の仮データ</small>
+        <small>保存済み試合のあるプレイヤー・同レートは同順位</small>
       </p>
       {state.status === 'loading' && (
         <p className="ranking-message" role="status">
@@ -87,7 +92,7 @@ export default function RankingPanel({
                     entry.id === currentPlayerId ? 'true' : undefined
                   }
                 >
-                  <td>{index + 1}</td>
+                  <td>{entry.rank ?? index + 1}</td>
                   <td>
                     {entry.name}
                     {entry.id === currentPlayerId && (

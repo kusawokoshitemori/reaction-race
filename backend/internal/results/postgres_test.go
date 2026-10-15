@@ -98,6 +98,25 @@ func TestPostgresAtomicIdempotent(t *testing.T) {
 	if _, err = store.Rating(ctx, match.ID, "intruder"); err == nil {
 		t.Fatal("unauthorized read")
 	}
+	history, err := store.History(ctx, "alice", 0)
+	if err != nil || len(history.Entries) != 1 || history.Entries[0].MatchID != match.ID || history.HasMore {
+		t.Fatal(history, err)
+	}
+	empty, err := store.History(ctx, "intruder", 0)
+	if err != nil || len(empty.Entries) != 0 {
+		t.Fatal(empty, err)
+	}
+	detail, err := store.Detail(ctx, match.ID, "alice")
+	if err != nil || len(detail.Entries) != 100 {
+		t.Fatal(detail, err)
+	}
+	if _, err = store.Detail(ctx, match.ID, "intruder"); err == nil {
+		t.Fatal("nonparticipant read detail")
+	}
+	leaders, err := store.Ranking(ctx, "alice")
+	if err != nil || len(leaders) != 2 || !leaders[0].Self || leaders[0].Rating != 1520 || leaders[0].Rank != 1 {
+		t.Fatal(leaders, err)
+	}
 	altered := match
 	altered.Entries = append([]Entry(nil), entries...)
 	altered.Entries[0].Name = "changed"
@@ -166,4 +185,35 @@ func TestPostgresAtomicIdempotent(t *testing.T) {
 	if err != nil || floor["0"] != (Rating{3, 0}) {
 		t.Fatal(floor, err)
 	}
+	// More than one page, equal timestamps, and ties retain deterministic ordering.
+	if _, err = pool.Exec(ctx, `INSERT INTO users(firebase_uid,display_name) VALUES ('unplayed','No matches'); UPDATE users SET rating=1600 WHERE firebase_uid IN ('alice','bob')`); err != nil {
+		t.Fatal(err)
+	}
+	leaders, err = store.Ranking(ctx, "bob")
+	if err != nil || len(leaders) != 2 || leaders[0].Rank != 1 || leaders[1].Rank != 1 || !leaders[1].Self {
+		t.Fatal(leaders, err)
+	}
+	for range 21 {
+		copy := match
+		copy.ID = uuid.NewString()
+		if _, err = store.Save(ctx, copy); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := store.History(ctx, "alice", 0)
+	if err != nil || len(first.Entries) != 20 || !first.HasMore {
+		t.Fatal(first, err)
+	}
+	second, err := store.History(ctx, "alice", 20)
+	if err != nil || len(second.Entries) != 6 || second.HasMore {
+		t.Fatal(second, err)
+	}
+	seen := map[string]bool{}
+	for _, e := range append(first.Entries, second.Entries...) {
+		if seen[e.MatchID] {
+			t.Fatal("duplicate page entry")
+		}
+		seen[e.MatchID] = true
+	}
+
 }
