@@ -5,29 +5,33 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/results"
 )
 
 const InputWindow = 3 * time.Second
 
 // Input contains only server measurements; reactionMs is provisional until finished.
 type Input struct {
-	RawReactionMs *int64 `json:"rawReactionMs,omitempty"`
-	CorrectionMs  int64  `json:"correctionMs"`
-	Measurement   string `json:"measurement,omitempty"`
-	Rank          *int   `json:"rank"`
-	ParticipantID string `json:"participantId"`
-	Outcome       string `json:"outcome"`
-	ReceivedAt    int64  `json:"receivedAt,omitempty"`
-	ReactionMs    *int64 `json:"reactionMs"`
+	Rating        *results.Rating `json:"rating,omitempty"`
+	RawReactionMs *int64          `json:"rawReactionMs,omitempty"`
+	CorrectionMs  int64           `json:"correctionMs"`
+	Measurement   string          `json:"measurement,omitempty"`
+	Rank          *int            `json:"rank"`
+	ParticipantID string          `json:"participantId"`
+	Outcome       string          `json:"outcome"`
+	ReceivedAt    int64           `json:"receivedAt,omitempty"`
+	ReactionMs    *int64          `json:"reactionMs"`
 }
 type match struct {
-	settled time.Time
-	links   map[string]*latency
-	id      string
-	signal  time.Time
-	inputs  map[string]Input
-	results []Input
-	timers  []*time.Timer
+	users       map[string]string
+	persistence string
+	settled     time.Time
+	links       map[string]*latency
+	id          string
+	signal      time.Time
+	inputs      map[string]Input
+	results     []Input
+	timers      []*time.Timer
 }
 
 // All callbacks and inputs share the manager mutex, including timestamp capture.
@@ -44,7 +48,10 @@ func (m *Manager) later(r *room, delay time.Duration, fn func()) {
 	r.match.timers = append(r.match.timers, timer)
 }
 func (m *Manager) startMatch(r *room) {
-	r.match = &match{id: uuid.NewString(), inputs: make(map[string]Input)}
+	r.match = &match{id: uuid.NewString(), inputs: make(map[string]Input), users: make(map[string]string)}
+	for uid, member := range r.members {
+		r.match.users[member.participant.ID] = uid
+	}
 	m.later(r, time.Second, func() { m.ready(r) })
 }
 func (m *Manager) ready(r *room) {
@@ -169,8 +176,11 @@ func (m *Manager) settle(r *room) {
 		}
 		m.calculate(r)
 		r.phase = "finished"
+		m.persist(r)
 		m.publish(r)
 		m.logger.Info("match finished", "room_id", r.id, "match_id", r.match.id)
-		m.later(r, m.retention, func() { m.remove(r) })
+		if m.store == nil {
+			m.later(r, m.retention, func() { m.remove(r) })
+		}
 	})
 }

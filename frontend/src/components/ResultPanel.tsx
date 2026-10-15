@@ -100,19 +100,33 @@ export default function ResultPanel({
             </div>
           ) : (
             <p>
-              レートなし
+              {serverStandings && !result.guest ? 'レート未確定' : 'レートなし'}
               <small>
                 {serverStandings
-                  ? 'レート更新は未実装です'
+                  ? result.guest
+                    ? 'ゲストにはレートがありません'
+                    : '保存完了後に確定値を表示します'
                   : 'ゲストにはレートがありません'}
               </small>
             </p>
           )}
         </div>
       </div>
+      {result.persistence && (
+        <p role="status">
+          {result.persistence === 'saved'
+            ? '結果を保存しました。'
+            : result.persistence === 'retrying'
+              ? '結果を保存できませんでした。自動で再試行しています。レートはまだ確定していません。'
+              : '結果を保存しています…'}
+        </p>
+      )}
+      {serverStandings &&
+        result.outcome === 'success' &&
+        result.rank === null && <p>参考記録のため、レートは変動しません。</p>}
       <p className="result-demo-note">
         {serverStandings
-          ? '通信遅延を補正して順位を決定します。同タイムは同順位です。計測不足・不安定な回線の記録は順位対象外です。端末の描画・入力遅延は補正できません。結果の保存は未対応です。'
+          ? '通信遅延を補正して順位を決定します。同タイムは同順位です。計測不足・不安定な回線の記録は順位対象外です。端末の描画・入力遅延は補正できません。'
           : '自分の反応時間はブラウザでの実測値です。他の参加者・順位・レートはモックで、保存はされません。'}
       </p>
       <div className="result-actions">

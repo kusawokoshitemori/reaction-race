@@ -5,7 +5,21 @@ export type Participant = {
   guest: boolean
 }
 export type Measurement = 'corrected' | 'unavailable' | 'unstable' | 'bot'
+export type Persistence = 'pending' | 'retrying' | 'saved'
+export type Rating = { before: number; after: number }
+export function isRating(value: unknown): value is Rating {
+  return (
+    isRecord(value) &&
+    typeof value.before === 'number' &&
+    Number.isSafeInteger(value.before) &&
+    value.before >= 0 &&
+    typeof value.after === 'number' &&
+    Number.isSafeInteger(value.after) &&
+    value.after >= 0
+  )
+}
 export type ServerInput = {
+  rating?: Rating
   participantId: string
   receivedAt?: number
   rawReactionMs?: number
@@ -17,6 +31,7 @@ export type ServerInput = {
   | { outcome: 'flying' | 'no-record'; reactionMs: null }
 )
 export type Room = {
+  persistence?: Persistence
   type: 'room'
   roomId: string
   phase: 'waiting' | 'locked' | 'ready' | 'signal' | 'settling' | 'finished'
@@ -53,6 +68,7 @@ function isInput(value: unknown): value is ServerInput {
   return (
     isRecord(value) &&
     typeof value.participantId === 'string' &&
+    (value.rating === undefined || isRating(value.rating)) &&
     (value.rank == null ||
       (value.outcome === 'success' &&
         typeof value.rank === 'number' &&
@@ -113,6 +129,13 @@ export function parseRoom(data: string): Room {
     new Set(r.participants.map((p) => p.id)).size !== r.participants.length
   )
     throw new Error('invalid room')
+  if (
+    r.persistence !== undefined &&
+    r.persistence !== 'pending' &&
+    r.persistence !== 'retrying' &&
+    r.persistence !== 'saved'
+  )
+    throw new Error('invalid persistence')
   const participants = r.participants
   if (typeof r.you !== 'string' || !participants.some((p) => p.id === r.you))
     throw new Error('invalid self')
@@ -156,6 +179,11 @@ export function parseRoom(data: string): Room {
     throw new Error('incomplete results')
   return {
     type: 'room',
+    ...(r.persistence === 'pending' ||
+    r.persistence === 'retrying' ||
+    r.persistence === 'saved'
+      ? { persistence: r.persistence }
+      : {}),
     you: r.you,
     ...(typeof r.matchId === 'string' ? { matchId: r.matchId } : {}),
     ...(typeof r.signalAt === 'number' ? { signalAt: r.signalAt } : {}),
