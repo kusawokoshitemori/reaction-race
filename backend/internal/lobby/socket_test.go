@@ -146,3 +146,59 @@ func TestSocketDisconnectRemovesWaitingParticipant(t *testing.T) {
 		t.Fatal("leave did not close socket")
 	}
 }
+
+func TestSocketRecoveryProtocol(t *testing.T) {
+	server, m := socketServer(t, time.Hour)
+	a := dial(t, ticketURL(t, server, "recover"))
+	a.WriteJSON(map[string]string{"type": "join"})
+	first := readRoom(t, a)
+	m.mu.Lock()
+	r := m.users["recover"]
+	m.freeze(r)
+	m.mu.Unlock()
+	locked := readRoom(t, a)
+	if locked.MatchID == "" || locked.InstanceID == "" {
+		t.Fatal("missing recovery identity")
+	}
+	a.Close()
+	deadline := time.Now().Add(time.Second)
+	for {
+		m.mu.Lock()
+		disconnected := r.members["recover"].connection == nil
+		m.mu.Unlock()
+		if disconnected {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("disconnect not observed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	b := dial(t, ticketURL(t, server, "recover"))
+	b.WriteJSON(map[string]string{"type": "join", "instanceId": first.InstanceID, "roomId": first.RoomID})
+	resumed := readRoom(t, b)
+	if resumed.You != first.You || resumed.MatchID != locked.MatchID {
+		t.Fatal("did not recover match")
+	}
+	restarted, _ := socketServer(t, time.Hour)
+	c := dial(t, ticketURL(t, restarted, "recover"))
+	c.WriteJSON(map[string]string{"type": "join", "instanceId": first.InstanceID, "roomId": first.RoomID})
+	c.SetReadDeadline(time.Now().Add(time.Second))
+	_, _, err := c.ReadMessage()
+	if ce, ok := err.(*websocket.CloseError); !ok || ce.Text != "server_restarted" {
+		t.Fatalf("restart: %v", err)
+	}
+}
+
+func TestSocketShutdownReportsCancellation(t *testing.T) {
+	server, m := socketServer(t, time.Hour)
+	c := dial(t, ticketURL(t, server, "shutdown"))
+	c.WriteJSON(map[string]string{"type": "join"})
+	readRoom(t, c)
+	m.Close()
+	c.SetReadDeadline(time.Now().Add(time.Second))
+	_, _, err := c.ReadMessage()
+	if ce, ok := err.(*websocket.CloseError); !ok || ce.Text != "server_restarted" {
+		t.Fatalf("shutdown: %v", err)
+	}
+}

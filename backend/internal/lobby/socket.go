@@ -46,11 +46,19 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 		c.SetReadLimit(1024)
 		_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-		if readCommand(c) != "join" {
+		kind, data, readErr := c.ReadMessage()
+		var join struct {
+			Type       string `json:"type"`
+			InstanceID string `json:"instanceId"`
+			RoomID     string `json:"roomId"`
+		}
+		d := json.NewDecoder(bytes.NewReader(data))
+		d.DisallowUnknownFields()
+		if readErr != nil || kind != websocket.TextMessage || d.Decode(&join) != nil || d.Decode(new(any)) != io.EOF || join.Type != "join" || (join.InstanceID == "") != (join.RoomID == "") {
 			closeSocket(c, 1008, "join_required")
 			return
 		}
-		s, err := manager.Join(p.UID, name, p.Guest)
+		s, err := manager.JoinResume(p.UID, name, p.Guest, join.InstanceID, join.RoomID)
 		if err != nil {
 			closeSocket(c, 1008, err.Error())
 			return
@@ -74,7 +82,13 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 				select {
 				case snapshot, ok := <-s.Updates:
 					if !ok {
-						closeSocket(c, 1000, "room_closed")
+						manager.mu.Lock()
+						reason := "room_closed"
+						if manager.closed {
+							reason = "server_restarted"
+						}
+						manager.mu.Unlock()
+						closeSocket(c, 1000, reason)
 						return
 					}
 					_ = c.SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -117,13 +131,6 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 		_ = c.Close()
 		<-done
 	})
-}
-func readCommand(c *websocket.Conn) string {
-	kind, data, err := c.ReadMessage()
-	if err != nil || kind != websocket.TextMessage {
-		return ""
-	}
-	return decodeCommand(data)
 }
 
 // Capture the authoritative receipt time before JSON decoding, under the same

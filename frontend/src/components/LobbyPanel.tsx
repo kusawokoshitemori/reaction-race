@@ -9,6 +9,7 @@ import {
 import type { LobbyState, Room } from '../lobby'
 import './LobbyPanel.css'
 import GamePanel from './GamePanel'
+import { readRecovery, saveRecovery } from '../recovery'
 
 export default function LobbyPanel({
   user,
@@ -16,13 +17,16 @@ export default function LobbyPanel({
   onComplete,
   active = true,
 }: {
-  user: Pick<User, 'getIdToken'>
+  user: Pick<User, 'uid' | 'getIdToken'>
   onLeave: () => void
   onComplete?: (room: Room) => void
   active?: boolean
 }) {
   const socketRef = useRef<WebSocket | null>(null)
   const completed = useRef(false)
+  const recovery = useRef(readRecovery(user.uid))
+  const latestRoom = useRef<Room | null>(null)
+  const [terminal, setTerminal] = useState(false)
   const completeRef = useRef(onComplete)
   useEffect(() => {
     completeRef.current = onComplete
@@ -81,13 +85,22 @@ export default function LobbyPanel({
         socket = new WebSocket(url)
         socketRef.current = socket
         socket.onopen = () => {
-          if (!disposed) socket?.send(JSON.stringify({ type: 'join' }))
+          if (!disposed)
+            socket?.send(JSON.stringify({ type: 'join', ...recovery.current }))
         }
         socket.onmessage = (event) => {
           if (disposed) return
           try {
             const room = parseRoom(event.data)
             clearTimeout(timeout)
+            latestRoom.current = room
+            if (room.instanceId && room.phase !== 'waiting') {
+              recovery.current = {
+                instanceId: room.instanceId,
+                roomId: room.roomId,
+              }
+              saveRecovery(userRef.current.uid, recovery.current)
+            }
             const received = performance.now()
             setReceivedAt(received)
             setNow(received)
@@ -101,7 +114,19 @@ export default function LobbyPanel({
             socket?.close()
           }
         }
-        socket.onclose = (event) => fail(closeMessage(event.reason))
+        socket.onclose = (event) => {
+          if (disposed) return
+          if (
+            ['server_restarted', 'room_expired', 'room_closed'].includes(
+              event.reason,
+            )
+          ) {
+            setTerminal(true)
+            recovery.current = null
+            saveRecovery(userRef.current.uid, null)
+          }
+          fail(closeMessage(event.reason))
+        }
         socket.onerror = () =>
           fail('待機室に接続できません。再試行してください。')
       } catch {
@@ -116,7 +141,10 @@ export default function LobbyPanel({
       abort.abort()
       clearTimeout(timeout)
       clearInterval(interval)
-      if (socket?.readyState === WebSocket.OPEN)
+      if (
+        socket?.readyState === WebSocket.OPEN &&
+        latestRoom.current?.phase !== 'finished'
+      )
         socket.send(JSON.stringify({ type: 'leave' }))
       socket?.close()
       socketRef.current = null
@@ -174,11 +202,12 @@ export default function LobbyPanel({
             <p>{state.error}</p>
             <button
               onClick={() => {
+                setTerminal(false)
                 setState({ status: 'connecting', room: null, error: '' })
                 setAttempt((value) => value + 1)
               }}
             >
-              再試行
+              {terminal ? '新しい試合に参加' : '再試行'}
             </button>
           </div>
         )}

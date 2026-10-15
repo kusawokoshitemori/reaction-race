@@ -349,3 +349,23 @@ for (const registered of [false, true]) {
     ).toBe('false')
   })
 }
+
+test.each(['#/game', '#/result'])(
+  '%sの再読込は同じユーザーの試合へ復帰する',
+  async (hash) => {
+    sessionStorage.setItem(
+      'reaction-race:recovery:guest',
+      JSON.stringify({ instanceId: 'i', roomId: 'r' }),
+    )
+    window.history.replaceState(null, '', hash)
+    authState.emit({ uid: 'guest', isAnonymous: true })
+    render(<App />)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: '一瞬を競う、仲間を待つ。' }),
+      ).toBeTruthy(),
+    )
+    expect(window.location.hash).toBe('#/game')
+    sessionStorage.clear()
+  },
+)
