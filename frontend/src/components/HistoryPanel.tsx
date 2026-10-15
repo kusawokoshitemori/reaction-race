@@ -1,63 +1,159 @@
-import { useState } from 'react'
-import type { MatchResult } from '../result'
-const outcomes = {
-  flying: 'フライング・記録なし',
-  'no-record': '未入力・記録なし',
+import { useEffect, useRef, useState } from 'react'
+import { isHistory, isDetail, useRecords } from '../records'
+import type { ReaderUser, RecordEntry } from '../records'
+function Outcome({ entry }: { entry: RecordEntry }) {
+  const delta =
+    entry.ratingAfter !== null && entry.ratingBefore !== null
+      ? entry.ratingAfter - entry.ratingBefore
+      : null
+  return (
+    <>
+      <strong>
+        {entry.outcome === 'flying'
+          ? 'フライング'
+          : entry.outcome === 'no-record'
+            ? '未入力'
+            : entry.rank === null
+              ? '参考記録（順位対象外）'
+              : `${entry.rank}位`}
+      </strong>
+      <span>
+        {entry.reactionMs === null ? '記録なし' : `${entry.reactionMs} ms`}
+      </span>
+      <span>
+        {delta === null
+          ? 'レートなし'
+          : `レート ${delta >= 0 ? '+' : ''}${delta}（${entry.ratingBefore} → ${entry.ratingAfter}）`}
+      </span>
+    </>
+  )
 }
-export default function HistoryPanel({
-  result,
+function MatchDetail({
+  user,
+  id,
+  onBack,
 }: {
-  result: MatchResult | null
+  user: ReaderUser
+  id: string
+  onBack: () => void
 }) {
-  const [empty, setEmpty] = useState(false)
+  const { data, error, retry } = useRecords(
+    user,
+    `/api/matches/${encodeURIComponent(id)}`,
+    isDetail,
+  )
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    heading.current?.focus()
+  }, [])
+  return (
+    <>
+      <button onClick={onBack}>戦績一覧へ戻る</button>
+      <h3 tabIndex={-1} ref={heading}>
+        保存済みの試合結果
+      </h3>
+      {error ? (
+        <>
+          <p role="alert">{error}</p>
+          <button onClick={retry}>再読み込み</button>
+        </>
+      ) : !data ? (
+        <p role="status">試合結果を読み込み中…</p>
+      ) : (
+        <>
+          <p>{new Date(data.finishedAt).toLocaleString('ja-JP')}</p>
+          <ul className="history-list">
+            {data.entries.map((e) => (
+              <li key={e.participantId}>
+                <span>
+                  {e.name}
+                  {e.bot ? '（BOT）' : e.guest ? '（ゲスト）' : ''}
+                </span>
+                <Outcome entry={e} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
+  )
+}
+export default function HistoryPanel({ user }: { user: ReaderUser }) {
+  const heading = useRef<HTMLHeadingElement>(null)
+  const [offset, setOffset] = useState(0)
+  const [selected, setSelected] = useState<string | null>(null)
+  const { data, error, retry } = useRecords(
+    user,
+    `/api/me/history?offset=${offset}`,
+    isHistory,
+  )
+  const previous = useRef({ selected, offset })
+  useEffect(() => {
+    if (
+      selected === null &&
+      (previous.current.selected !== null || previous.current.offset !== offset)
+    )
+      heading.current?.focus()
+    previous.current = { selected, offset }
+  }, [selected, offset])
   return (
     <section className="account-card" aria-label="プレイヤーの戦績">
-      <h2>デモプレイヤーの戦績</h2>
-      <p className="auth-demo-note">画面確認用の仮データです。</p>
-      {empty ? (
-        <div className="history-empty">
-          <h3>まだ戦績がありません</h3>
-          <p>最初のレースに参加してみましょう。</p>
-          <a className="button" href="#/">
-            ゲームへ
-          </a>
-        </div>
+      <h2 ref={heading} tabIndex={-1}>
+        あなたの戦績
+      </h2>
+      {selected ? (
+        <MatchDetail
+          user={user}
+          id={selected}
+          onBack={() => setSelected(null)}
+        />
       ) : (
-        <ul className="history-list">
-          <li>
-            <span>サンプル試合</span>
-            <strong>12位 / 100人</strong>
-            <span>
-              240 ms <small>レート +6</small>
-            </span>
-          </li>
-          {result && (
-            <li>
-              <span>今回の試合（未保存）</span>
-              <strong>
-                {result.outcome === 'success'
-                  ? `${result.rank === null ? '順位未計算' : `${result.rank}位`} / ${result.participants}人・${result.reactionMs} ms`
-                  : outcomes[result.outcome]}
-              </strong>
-              <a href="#/result">試合結果を見る →</a>
-            </li>
+        <>
+          {error ? (
+            <>
+              <p role="alert">{error}</p>
+              <button onClick={retry}>再読み込み</button>
+            </>
+          ) : !data ? (
+            <p role="status">戦績を読み込み中…</p>
+          ) : (
+            <>
+              {data.entries.length === 0 ? (
+                <p role="status">まだ戦績がありません</p>
+              ) : (
+                <ul className="history-list">
+                  {data.entries.map((e) => (
+                    <li key={e.matchId}>
+                      <span>
+                        {new Date(e.finishedAt).toLocaleString('ja-JP')}
+                      </span>
+                      <Outcome entry={e} />
+                      <button onClick={() => setSelected(e.matchId)}>
+                        試合詳細を見る
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <nav aria-label="戦績のページ">
+                <button
+                  disabled={offset === 0}
+                  onClick={() => setOffset((n) => Math.max(0, n - 20))}
+                >
+                  前の20件
+                </button>
+                <button
+                  disabled={!data.hasMore}
+                  onClick={() => setOffset((n) => n + 20)}
+                >
+                  次の20件
+                </button>
+              </nav>
+            </>
           )}
-        </ul>
+        </>
       )}
       <a href="#/auth">アカウントに戻る</a>
-      {import.meta.env.DEV && (
-        <details className="demo-controls">
-          <summary>表示確認用</summary>
-          <label>
-            <input
-              type="checkbox"
-              checked={empty}
-              onChange={(event) => setEmpty(event.target.checked)}
-            />
-            戦績なしを表示する
-          </label>
-        </details>
-      )}
     </section>
   )
 }

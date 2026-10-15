@@ -10,6 +10,18 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { fetchProfile } from './auth'
+import { demoRanking } from './ranking'
+vi.mock('./records', async (original) => {
+  const actual = await original<typeof import('./records')>()
+  return {
+    ...actual,
+    useRecords: (_user: unknown, path: string) => ({
+      data:
+        path === '/api/ranking' ? demoRanking : { entries: [], hasMore: false },
+      retry: () => {},
+    }),
+  }
+})
 import { saveRecovery, readRecovery } from './recovery'
 
 vi.mock('./components/LobbyPanel', () => ({

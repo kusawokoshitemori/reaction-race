@@ -1,6 +1,11 @@
 import type { Ref } from 'react'
 
-export type RankingEntry = { id: string; name: string; rating: number }
+export type RankingEntry = {
+  id: string
+  name: string
+  rating: number
+  rank?: number
+}
 export type RankingState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
@@ -31,17 +36,17 @@ export default function RankingPanel({
         <h1 id="ranking-heading" ref={headingRef} tabIndex={-1}>
           ランキング
         </h1>
-        <span>TOP 50</span>
+        <span>最大50人</span>
       </div>
       <p className="ranking-summary">
         {currentPlayerId === null
           ? 'ゲストで閲覧中'
           : state.status === 'success' && entries.length > 0
             ? ownIndex < 0
-              ? 'あなたは50位以内に入っていません'
-              : `あなたは ${ownIndex + 1} 位`
+              ? 'あなたの記録はこの一覧に表示されていません'
+              : `あなたは ${entries[ownIndex].rank ?? ownIndex + 1} 位`
             : '総合レートランキング'}
-        <small>表示確認用の仮データ</small>
+        <small>保存済み試合のあるプレイヤー・同レートは同順位</small>
       </p>
       {state.status === 'loading' && (
         <p className="ranking-message" role="status">
@@ -64,7 +69,7 @@ export default function RankingPanel({
           className="ranking-scroll"
           tabIndex={0}
           role="region"
-          aria-label="1位から50位までのランキング一覧"
+          aria-label="レート順の最大50人のランキング一覧"
         >
           <table>
             <thead>
@@ -87,7 +92,7 @@ export default function RankingPanel({
                     entry.id === currentPlayerId ? 'true' : undefined
                   }
                 >
-                  <td>{index + 1}</td>
+                  <td>{entry.rank ?? index + 1}</td>
                   <td>
                     {entry.name}
                     {entry.id === currentPlayerId && (

@@ -71,6 +71,10 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		mux.Handle("/api/lobby", tickets.UpgradeGuard(origin, lobby.Handler(rooms, profile.Postgres{Pool: pool}, origin)))
 		api.HandleFunc("POST /api/ws-ticket", tickets.Issue)
 		api.Handle("GET /api/matches/{id}/rating", rooms.RatingHandler())
+		reads := results.ReadHandler(results.Postgres{Pool: pool}, logger)
+		api.Handle("GET /api/me/history", reads)
+		api.Handle("GET /api/matches/{id}", reads)
+		api.Handle("GET /api/ranking", reads)
 		api.Handle("/", profile.Handler(profile.Postgres{Pool: pool}, logger))
 		mux.Handle("/api/", identity.Middleware(authClient, api))
 	} else {

@@ -37,7 +37,9 @@ test('圏外、空、読み込み中の表示を切り替える', () => {
       state={{ status: 'success', entries: demoRanking }}
     />,
   )
-  expect(screen.getByText('あなたは50位以内に入っていません')).toBeTruthy()
+  expect(
+    screen.getByText('あなたの記録はこの一覧に表示されていません'),
+  ).toBeTruthy()
   view.rerender(
     <RankingPanel
       {...actions}
