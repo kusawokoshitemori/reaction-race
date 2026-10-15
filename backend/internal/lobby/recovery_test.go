@@ -1,6 +1,7 @@
 package lobby
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -75,17 +76,17 @@ func TestResumeRestartExpiryAndMembership(t *testing.T) {
 	old := ss[0]
 	m.Leave(old, false)
 	restarted := testManager(t, time.Hour)
-	if _, err := restarted.JoinResume(old.uid, "same", true, m.instanceID, old.room.id); err == nil || err.Error() != "server_restarted" {
+	if _, err := restarted.JoinResume(old.uid, "same", true, m.instanceID, old.room.id); !errors.Is(err, ErrServerRestarted) {
 		t.Fatalf("restart: %v", err)
 	}
 	if len(restarted.rooms) != 0 {
 		t.Fatal("restart silently joined new room")
 	}
-	if _, err := m.JoinResume("other", "other", true, m.instanceID, old.room.id); err == nil || err.Error() != "room_expired" {
+	if _, err := m.JoinResume("other", "other", true, m.instanceID, old.room.id); !errors.Is(err, ErrRoomExpired) {
 		t.Fatalf("membership: %v", err)
 	}
 	m.Finish(old.room.id)
-	if _, err := m.JoinResume(old.uid, "same", true, m.instanceID, old.room.id); err == nil || err.Error() != "room_expired" {
+	if _, err := m.JoinResume(old.uid, "same", true, m.instanceID, old.room.id); !errors.Is(err, ErrRoomExpired) {
 		t.Fatalf("expiry: %v", err)
 	}
 }

@@ -13,6 +13,8 @@ import (
 
 const Capacity = 100
 
+var ErrServerRestarted = errors.New("server_restarted")
+var ErrRoomExpired = errors.New("room_expired")
 var ErrDuplicate = errors.New("already_connected")
 var ErrUnavailable = errors.New("lobby_unavailable")
 
@@ -82,11 +84,11 @@ func (m *Manager) JoinResume(uid, name string, guest bool, instanceID, roomID st
 	if instanceID != "" {
 		if instanceID != m.instanceID {
 			m.logger.Info("match resume rejected", "room_id", roomID, "reason", "server_restarted")
-			return nil, errors.New("server_restarted")
+			return nil, ErrServerRestarted
 		}
 		if r := m.users[uid]; r == nil || r.id != roomID {
 			m.logger.Info("match resume rejected", "room_id", roomID, "reason", "room_expired")
-			return nil, errors.New("room_expired")
+			return nil, ErrRoomExpired
 		}
 	}
 	if m.closed {

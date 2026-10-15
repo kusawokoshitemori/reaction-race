@@ -266,8 +266,7 @@ export default function App() {
               <button
                 className="start-button"
                 onClick={() => {
-                  if (match && identity.user)
-                    saveRecovery(identity.user.uid, null)
+                  if (identity.user) saveRecovery(identity.user.uid, null)
                   act('join', '/game')
                 }}
               >

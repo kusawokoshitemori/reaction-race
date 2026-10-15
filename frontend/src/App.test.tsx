@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { fetchProfile } from './auth'
+import { saveRecovery, readRecovery } from './recovery'
 
 vi.mock('./components/LobbyPanel', () => ({
   default: ({ onLeave }: { onLeave: () => void }) => (
@@ -369,3 +370,15 @@ test.each(['#/game', '#/result'])(
     sessionStorage.clear()
   },
 )
+
+test('再読込相当のタイトルから新規参加すると古い復帰情報を破棄する', async () => {
+  authState.emit({ uid: 'registered', isAnonymous: false })
+  saveRecovery('registered', {
+    instanceId: 'old-server',
+    roomId: 'finished-room',
+  })
+  render(<App />)
+  await click('ゲーム開始')
+  expect(readRecovery('registered')).toBeNull()
+  sessionStorage.clear()
+})

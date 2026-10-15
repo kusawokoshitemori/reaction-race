@@ -24,7 +24,8 @@ export default function LobbyPanel({
 }) {
   const socketRef = useRef<WebSocket | null>(null)
   const completed = useRef(false)
-  const recovery = useRef(readRecovery(user.uid))
+  const [initialRecovery] = useState(() => readRecovery(user.uid))
+  const recovery = useRef(initialRecovery)
   const latestRoom = useRef<Room | null>(null)
   const [terminal, setTerminal] = useState(false)
   const completeRef = useRef(onComplete)
