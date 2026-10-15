@@ -156,7 +156,7 @@ func ReadHandler(store Reader, logger *slog.Logger) http.Handler {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			if err = json.NewEncoder(w).Encode(data); err != nil {
-				logger.Warn("results response failed", "resource", kind)
+				logger.Warn("results response failed", "resource", kind, "error", err)
 			}
 		}
 	}

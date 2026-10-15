@@ -92,6 +92,8 @@ export function isRanking(v: unknown): v is Leader[] {
     )
   )
 }
+class RecordsError extends Error {}
+
 export async function readRecords<T>(
   user: ReaderUser,
   path: string,
@@ -109,7 +111,7 @@ export async function readRecords<T>(
   let response = await request(false)
   if (response.status === 401) response = await request(true)
   if (!response.ok)
-    throw new Error(
+    throw new RecordsError(
       response.status === 404
         ? '試合が見つからないか、閲覧権限がありません。'
         : response.status === 403
@@ -117,7 +119,8 @@ export async function readRecords<T>(
           : 'データを取得できませんでした。再読み込みしてください。',
     )
   const data: unknown = await response.json()
-  if (!guard(data)) throw new Error('データの形式を確認できませんでした。')
+  if (!guard(data))
+    throw new RecordsError('データの形式を確認できませんでした。')
   return data
 }
 export function useRecords<T>(
@@ -152,9 +155,11 @@ export function useRecords<T>(
             user,
             attempt,
             error:
-              cause instanceof Error
+              cause instanceof RecordsError
                 ? cause.message
-                : 'データを取得できませんでした。',
+                : cause instanceof DOMException && cause.name === 'TimeoutError'
+                  ? '時間内に応答がありませんでした。再読み込みしてください。'
+                  : 'データを取得できませんでした。再読み込みしてください。',
           })
       })
     return () => {

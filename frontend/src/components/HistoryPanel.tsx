@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isHistory, isDetail, useRecords } from '../records'
 import type { ReaderUser, RecordEntry } from '../records'
 function Outcome({ entry }: { entry: RecordEntry }) {
@@ -42,10 +42,16 @@ function MatchDetail({
     `/api/matches/${encodeURIComponent(id)}`,
     isDetail,
   )
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    heading.current?.focus()
+  }, [])
   return (
     <>
       <button onClick={onBack}>戦績一覧へ戻る</button>
-      <h3>保存済みの試合結果</h3>
+      <h3 tabIndex={-1} ref={heading}>
+        保存済みの試合結果
+      </h3>
       {error ? (
         <>
           <p role="alert">{error}</p>
@@ -73,6 +79,7 @@ function MatchDetail({
   )
 }
 export default function HistoryPanel({ user }: { user: ReaderUser }) {
+  const heading = useRef<HTMLHeadingElement>(null)
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const { data, error, retry } = useRecords(
@@ -80,9 +87,20 @@ export default function HistoryPanel({ user }: { user: ReaderUser }) {
     `/api/me/history?offset=${offset}`,
     isHistory,
   )
+  const previous = useRef({ selected, offset })
+  useEffect(() => {
+    if (
+      selected === null &&
+      (previous.current.selected !== null || previous.current.offset !== offset)
+    )
+      heading.current?.focus()
+    previous.current = { selected, offset }
+  }, [selected, offset])
   return (
     <section className="account-card" aria-label="プレイヤーの戦績">
-      <h2>あなたの戦績</h2>
+      <h2 ref={heading} tabIndex={-1}>
+        あなたの戦績
+      </h2>
       {selected ? (
         <MatchDetail
           user={user}

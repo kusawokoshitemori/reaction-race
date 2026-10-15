@@ -36,14 +36,14 @@ export default function RankingPanel({
         <h1 id="ranking-heading" ref={headingRef} tabIndex={-1}>
           ランキング
         </h1>
-        <span>TOP 50</span>
+        <span>最大50人</span>
       </div>
       <p className="ranking-summary">
         {currentPlayerId === null
           ? 'ゲストで閲覧中'
           : state.status === 'success' && entries.length > 0
             ? ownIndex < 0
-              ? 'あなたは50位以内に入っていません'
+              ? 'あなたの記録はこの一覧に表示されていません'
               : `あなたは ${entries[ownIndex].rank ?? ownIndex + 1} 位`
             : '総合レートランキング'}
         <small>保存済み試合のあるプレイヤー・同レートは同順位</small>
@@ -69,7 +69,7 @@ export default function RankingPanel({
           className="ranking-scroll"
           tabIndex={0}
           role="region"
-          aria-label="1位から50位までのランキング一覧"
+          aria-label="レート順の最大50人のランキング一覧"
         >
           <table>
             <thead>

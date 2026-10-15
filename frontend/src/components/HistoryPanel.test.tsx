@@ -41,9 +41,15 @@ test('保存済み戦績から詳細を開き一覧へ戻れる', async () => {
     await screen.findByRole('button', { name: '試合詳細を見る' }),
   )
   expect(await screen.findByText('Alice')).toBeTruthy()
+  expect(document.activeElement).toBe(
+    screen.getByRole('heading', { name: '保存済みの試合結果' }),
+  )
   expect(screen.getByText('レート +20（1500 → 1520）')).toBeTruthy()
   await userEvent.click(screen.getByRole('button', { name: '戦績一覧へ戻る' }))
   expect(screen.getByRole('button', { name: '試合詳細を見る' })).toBeTruthy()
+  expect(document.activeElement).toBe(
+    screen.getByRole('heading', { name: 'あなたの戦績' }),
+  )
   expect(fetcher.mock.calls[1][0]).toBe('/api/matches/m')
 })
 test('失敗後に再読み込みすると空の戦績を表示する', async () => {
@@ -55,7 +61,9 @@ test('失敗後に再読み込みすると空の戦績を表示する', async ()
       .mockResolvedValueOnce(Response.json({ entries: [], hasMore: false })),
   )
   render(<HistoryPanel user={user} />)
-  await screen.findByRole('alert')
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'データを取得できませんでした。再読み込みしてください。',
+  )
   await userEvent.click(screen.getByRole('button', { name: '再読み込み' }))
   expect(await screen.findByText('まだ戦績がありません')).toBeTruthy()
 })
