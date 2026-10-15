@@ -15,6 +15,8 @@ import (
 
 const Capacity = 100
 
+var ErrServerRestarted = errors.New("server_restarted")
+var ErrRoomExpired = errors.New("room_expired")
 var ErrDuplicate = errors.New("already_connected")
 var ErrUnavailable = errors.New("lobby_unavailable")
 
@@ -26,6 +28,7 @@ type Participant struct {
 }
 type Snapshot struct {
 	Persistence  string        `json:"persistence,omitempty"`
+	InstanceID   string        `json:"instanceId"`
 	Type         string        `json:"type"`
 	RoomID       string        `json:"roomId"`
 	Phase        string        `json:"phase"`
@@ -65,6 +68,7 @@ type Manager struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	saves           sync.WaitGroup
+	instanceID      string
 	mu              sync.Mutex
 	rooms           map[string]*room
 	users           map[string]*room
@@ -80,13 +84,35 @@ func New(wait, retention time.Duration, logger *slog.Logger, stores ...results.S
 	if len(stores) > 0 {
 		store = stores[0]
 	}
-	return &Manager{saveStatuses: make(map[string]*saveStatus), saveRetry: 30 * time.Second, ctx: ctx, cancel: cancel, store: store, rooms: make(map[string]*room), users: make(map[string]*room), wait: wait, retention: retention, logger: logger}
+	return &Manager{instanceID: uuid.NewString(), saveStatuses: make(map[string]*saveStatus), saveRetry: 30 * time.Second, ctx: ctx, cancel: cancel, store: store, rooms: make(map[string]*room), users: make(map[string]*room), wait: wait, retention: retention, logger: logger}
 }
 func (m *Manager) Join(uid, name string, guest bool) (*Subscription, error) {
+	return m.JoinResume(uid, name, guest, "", "")
+}
+
+// JoinResume checks recovery before admitting anyone to a new room. IDs are
+// hints only: membership always comes from the authenticated UID.
+func (m *Manager) JoinResume(uid, name string, guest bool, instanceID, roomID string) (*Subscription, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if instanceID != "" {
+		if instanceID != m.instanceID {
+			m.logger.Info("match resume rejected", "room_id", roomID, "reason", "server_restarted")
+			return nil, ErrServerRestarted
+		}
+		if r := m.users[uid]; r == nil || r.id != roomID {
+			m.logger.Info("match resume rejected", "room_id", roomID, "reason", "room_expired")
+			return nil, ErrRoomExpired
+		}
+	}
 	if m.closed {
 		return nil, ErrUnavailable
+	}
+	// A fresh join after viewing a result starts a new match. Recovery explicitly
+	// names its old room and therefore continues to return the immutable result.
+	if r := m.users[uid]; instanceID == "" && r != nil && r.phase == "finished" && r.members[uid].connection == nil {
+		delete(r.members, uid)
+		delete(m.users, uid)
 	}
 	if r := m.users[uid]; r != nil {
 		member := r.members[uid]
@@ -136,7 +162,7 @@ func (m *Manager) snapshot(r *room) Snapshot {
 	if !r.deadline.IsZero() {
 		deadline = r.deadline.UnixMilli()
 	}
-	return Snapshot{Type: "room", RoomID: r.id, Phase: r.phase, Deadline: deadline, ServerTime: time.Now().UnixMilli(), Capacity: Capacity, Participants: append([]Participant(nil), r.roster...)}
+	return Snapshot{InstanceID: m.instanceID, Type: "room", RoomID: r.id, Phase: r.phase, Deadline: deadline, ServerTime: time.Now().UnixMilli(), Capacity: Capacity, Participants: append([]Participant(nil), r.roster...)}
 }
 func (m *Manager) publish(r *room) {
 	snapshot := m.snapshot(r)
@@ -188,8 +214,8 @@ func (m *Manager) freeze(r *room) {
 		r.roster = append(r.roster, Participant{ID: fmt.Sprintf("bot:%s:%d", r.id, n), Name: fmt.Sprintf("BOT %02d", n), Bot: true})
 	}
 	m.logger.Info("lobby locked", "room_id", r.id, "humans", len(r.members), "bots", Capacity-len(r.members))
-	m.publish(r)
 	m.startMatch(r)
+	m.publish(r)
 }
 
 // Leave keeps the frozen roster. Unexpected disconnects may resume until Finish.
@@ -206,7 +232,7 @@ func (m *Manager) Leave(s *Subscription, explicit bool) {
 	}
 	close(s.Updates)
 	member.connection = nil
-	if r.phase == "waiting" || explicit {
+	if r.phase == "waiting" || (explicit && r.phase == "finished") {
 		delete(m.users, s.uid)
 		delete(r.members, s.uid)
 	}

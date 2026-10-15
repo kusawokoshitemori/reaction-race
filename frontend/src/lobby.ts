@@ -33,6 +33,7 @@ export type ServerInput = {
 export type Room = {
   persistence?: Persistence
   type: 'room'
+  instanceId?: string
   roomId: string
   phase: 'waiting' | 'locked' | 'ready' | 'signal' | 'settling' | 'finished'
   you: string
@@ -108,6 +109,8 @@ export function parseRoom(data: string): Room {
   if (
     !isRecord(r) ||
     r.type !== 'room' ||
+    (r.instanceId !== undefined &&
+      (typeof r.instanceId !== 'string' || !r.instanceId)) ||
     typeof r.roomId !== 'string' ||
     !r.roomId ||
     (r.phase !== 'waiting' &&
@@ -186,6 +189,7 @@ export function parseRoom(data: string): Room {
     r.persistence === 'saved'
       ? { persistence: r.persistence }
       : {}),
+    ...(typeof r.instanceId === 'string' ? { instanceId: r.instanceId } : {}),
     you: r.you,
     ...(typeof r.matchId === 'string' ? { matchId: r.matchId } : {}),
     ...(typeof r.signalAt === 'number' ? { signalAt: r.signalAt } : {}),
@@ -208,6 +212,10 @@ export function remainingSeconds(room: Room, elapsedMs: number) {
   )
 }
 export function closeMessage(reason: string) {
+  if (reason === 'server_restarted')
+    return 'サーバーの再起動により試合が中止されました。新しい試合に参加してください。'
+  if (reason === 'room_expired')
+    return '試合の保持期間が終了したため復帰できません。新しい試合に参加してください。'
   if (reason === 'already_connected')
     return '別のタブまたは直前の接続が残っています。別のタブで参加中なら退出し、回線が切れた場合はしばらく待って再試行してください。'
   if (reason === 'room_closed')
