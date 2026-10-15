@@ -60,3 +60,7 @@ Viteの `/api` プロキシはWebSocket対応。確認用の別バックエン�
 - 実Firebase匿名認証→チケット→WebSocket→100人（人間1＋ボット99）、2ブラウザの同室参加・人数同期・確定（人間2＋ボット98）、退出後のタイトル復帰を確認
 
 WebSocketライブラリ: [Gorilla WebSocket公式API](https://pkg.go.dev/github.com/gorilla/websocket)（同時read/writeとOrigin検査の規約に従う）。
+
+## 08実装後の変更
+
+[試合進行](match.md)を接続済み。上記の07時点の保持期限・未接続の記述は、08でfinished通知後2分の保持とサーバー通知によるゲーム／結果表示へ置き換えた。

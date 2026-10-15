@@ -4,7 +4,7 @@ export type MatchResult = {
   participants: number
   rating: { before: number; after: number } | null
 } & (
-  | { outcome: 'success'; rank: number; reactionMs: number }
+  | { outcome: 'success'; rank: number | null; reactionMs: number }
   | { outcome: 'flying' | 'no-record'; rank: null; reactionMs: null }
 )
 
@@ -54,7 +54,7 @@ export function formatRatingDelta(delta: number): string {
 }
 
 export type MatchStanding = { id: string; name: string; isYou: boolean } & (
-  | { outcome: 'success'; rank: number; reactionMs: number }
+  | { outcome: 'success'; rank: number | null; reactionMs: number }
   | { outcome: 'flying' | 'no-record'; rank: null; reactionMs: null }
 )
 
@@ -121,4 +121,36 @@ export function createDemoStandings(result: MatchResult): MatchStanding[] {
   return entries.map((entry, index) =>
     entry.outcome === 'success' ? { ...entry, rank: index + 1 } : entry,
   )
+}
+
+// Task 08 exposes raw server observations. Task 09 will supply corrected ranks.
+export function serverResult(room: import('./lobby').Room): {
+  result: MatchResult
+  standings: MatchStanding[]
+} {
+  if (room.phase !== 'finished' || !room.results)
+    throw new Error('unfinished match')
+  const own = room.results.find((input) => input.participantId === room.you)
+  if (!own) throw new Error('missing result')
+  const standings: MatchStanding[] = room.results.map((input) => {
+    const participant = room.participants.find(
+      (p) => p.id === input.participantId,
+    )
+    if (!participant) throw new Error('missing participant')
+    const player = {
+      id: input.participantId,
+      name: participant.name,
+      isYou: input.participantId === room.you,
+      rank: null,
+    }
+    return input.outcome === 'success'
+      ? { ...player, outcome: input.outcome, reactionMs: input.reactionMs }
+      : { ...player, outcome: input.outcome, reactionMs: null }
+  })
+  const shared = { participants: room.capacity, rating: null, rank: null }
+  const result: MatchResult =
+    own.outcome === 'success'
+      ? { ...shared, outcome: own.outcome, reactionMs: own.reactionMs }
+      : { ...shared, outcome: own.outcome, reactionMs: null }
+  return { result, standings }
 }

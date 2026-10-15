@@ -14,7 +14,8 @@ import RatingPanel from './components/RatingPanel'
 import RankingPanel from './components/RankingPanel'
 import ResultPanel from './components/ResultPanel'
 import LobbyPanel from './components/LobbyPanel'
-import { createDemoResult } from './result'
+import { serverResult } from './result'
+import type { Room } from './lobby'
 import { demoRanking } from './ranking'
 import './App.css'
 
@@ -39,7 +40,9 @@ export default function App() {
   const [logoutError, setLogoutError] = useState('')
   const [helpOpen, setHelpOpen] = useState(false)
   const helpHeading = useRef<HTMLHeadingElement>(null)
-  const [reactionMs, setReactionMs] = useState<number | null>(null)
+  const [match, setMatch] = useState<ReturnType<typeof serverResult> | null>(
+    null,
+  )
   const [notice, setNotice] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
   const rankingHeading = useRef<HTMLHeadingElement>(null)
@@ -105,12 +108,31 @@ export default function App() {
     const next = transition(previous, action)
     sessionRef.current = next
     setSession(next)
-    if (action === 'join' || action === 'logout') setReactionMs(null)
+    if (action === 'join' || action === 'logout') setMatch(null)
     log('action', { action, from: previous.phase, to: next.phase })
     if (action === 'finish' && next !== previous && next.result) {
       log('result-ready', { source: 'demo', outcome: next.result })
     }
     if (destination) window.location.hash = destination
+  }, [])
+
+  const completeMatch = useCallback((room: Room) => {
+    const match = serverResult(room)
+    setMatch(match)
+    const next = {
+      ...sessionRef.current,
+      phase: null,
+      outcome: null,
+      result: match.result.outcome,
+    }
+    sessionRef.current = next
+    setSession(next)
+    window.location.hash = '/result'
+    log('result-ready', {
+      source: 'server',
+      matchId: room.matchId,
+      outcome: match.result.outcome,
+    })
   }, [])
 
   useEffect(() => {
@@ -252,18 +274,17 @@ export default function App() {
           )}
           {route === '/game' && identity.user && (
             <LobbyPanel
+              active={!helpOpen}
               key={identity.user.uid}
               user={identity.user}
               onLeave={() => act('leave', '/')}
+              onComplete={completeMatch}
             />
           )}
-          {route === '/result' && session.result && (
+          {route === '/result' && match && (
             <ResultPanel
-              result={createDemoResult(
-                session.result,
-                session.signedIn,
-                reactionMs ?? undefined,
-              )}
+              result={match.result}
+              standings={match.standings}
               onRematch={() => act('join', '/game')}
             />
           )}
@@ -287,17 +308,7 @@ export default function App() {
               />
             ))}
           {route === '/history' && (
-            <HistoryPanel
-              result={
-                session.result
-                  ? createDemoResult(
-                      session.result,
-                      session.signedIn,
-                      reactionMs ?? undefined,
-                    )
-                  : null
-              }
-            />
+            <HistoryPanel result={match?.result ?? null} />
           )}
         </div>
       </main>

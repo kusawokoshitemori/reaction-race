@@ -33,10 +33,10 @@ export default function HistoryPanel({
           </li>
           {result && (
             <li>
-              <span>今回の仮試合</span>
+              <span>今回の試合（未保存）</span>
               <strong>
                 {result.outcome === 'success'
-                  ? `${result.rank}位 / ${result.participants}人・${result.reactionMs} ms`
+                  ? `${result.rank === null ? '順位未計算' : `${result.rank}位`} / ${result.participants}人・${result.reactionMs} ms`
                   : outcomes[result.outcome]}
               </strong>
               <a href="#/result">試合結果を見る →</a>

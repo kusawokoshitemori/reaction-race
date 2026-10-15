@@ -1,18 +1,23 @@
 import { useRef } from 'react'
 import { createDemoStandings, formatRatingDelta, resultCopy } from '../result'
-import type { MatchResult } from '../result'
+import type { MatchResult, MatchStanding } from '../result'
 
 type ResultPanelProps = {
   result: MatchResult
+  standings?: MatchStanding[]
   onRematch: () => void
 }
 
-export default function ResultPanel({ result, onRematch }: ResultPanelProps) {
+export default function ResultPanel({
+  result,
+  standings: serverStandings,
+  onRematch,
+}: ResultPanelProps) {
   const copy = resultCopy[result.outcome]
   const delta = result.rating
     ? result.rating.after - result.rating.before
     : null
-  const standings = createDemoStandings(result)
+  const standings = serverStandings ?? createDemoStandings(result)
   const firstRow = useRef<HTMLTableRowElement>(null)
   const yourRow = useRef<HTMLTableRowElement>(null)
 
@@ -36,7 +41,11 @@ export default function ResultPanel({ result, onRematch }: ResultPanelProps) {
             <dt>今回の順位</dt>
             <dd>
               {result.rank === null ? (
-                <strong className="result-empty">順位なし</strong>
+                <strong className="result-empty">
+                  {serverStandings && result.outcome === 'success'
+                    ? '未計算'
+                    : '順位なし'}
+                </strong>
               ) : (
                 <>
                   <strong>{result.rank}</strong>
@@ -59,7 +68,9 @@ export default function ResultPanel({ result, onRematch }: ResultPanelProps) {
               )}
               <small>
                 {result.outcome === 'success'
-                  ? '今回の記録'
+                  ? serverStandings
+                    ? 'サーバー受信時間（補正前）'
+                    : '今回の記録'
                   : '有効な入力がありません'}
               </small>
             </dd>
@@ -87,13 +98,20 @@ export default function ResultPanel({ result, onRematch }: ResultPanelProps) {
             </div>
           ) : (
             <p>
-              レートなし<small>ゲストにはレートがありません</small>
+              レートなし
+              <small>
+                {serverStandings
+                  ? 'レート更新は未実装です'
+                  : 'ゲストにはレートがありません'}
+              </small>
             </p>
           )}
         </div>
       </div>
       <p className="result-demo-note">
-        自分の反応時間はブラウザでの実測値です。他の参加者・順位・レートはモックで、保存はされません。
+        {serverStandings
+          ? 'サーバーが確定した入力結果です。遅延補正・順位計算・保存は今後対応します。'
+          : '自分の反応時間はブラウザでの実測値です。他の参加者・順位・レートはモックで、保存はされません。'}
       </p>
       <div className="result-actions">
         <button onClick={onRematch}>
@@ -109,14 +127,15 @@ export default function ResultPanel({ result, onRematch }: ResultPanelProps) {
       >
         <div className="match-standings-heading">
           <h2 id="match-standings-heading">
-            今回のランキング <small>{result.participants}人</small>
+            {serverStandings ? '参加者の結果' : '今回のランキング'}{' '}
+            <small>{result.participants}人</small>
           </h2>
           <div className="match-standings-jumps">
             <button
               className="secondary"
               onClick={() => revealRow(firstRow.current)}
             >
-              1位へ
+              {serverStandings ? '先頭へ' : '1位へ'}
             </button>
             <button
               className="secondary"

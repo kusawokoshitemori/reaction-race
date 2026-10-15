@@ -84,7 +84,14 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 			}
 		}()
 		for {
-			command := readCommand(c)
+			kind, data, err := c.ReadMessage()
+			if err != nil || kind != websocket.TextMessage {
+				break
+			}
+			command := manager.receiveCommand(s, data)
+			if command == "tap" {
+				continue
+			}
 			if command == "leave" {
 				manager.Leave(s, true)
 				break
@@ -105,6 +112,22 @@ func readCommand(c *websocket.Conn) string {
 	if err != nil || kind != websocket.TextMessage {
 		return ""
 	}
+	return decodeCommand(data)
+}
+
+// Capture the authoritative receipt time before JSON decoding, under the same
+// lock used by timers so completion cannot race ahead of a received command.
+func (m *Manager) receiveCommand(s *Subscription, data []byte) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	received := time.Now()
+	command := decodeCommand(data)
+	if command == "tap" {
+		m.tap(s, received)
+	}
+	return command
+}
+func decodeCommand(data []byte) string {
 	var msg struct {
 		Type string `json:"type"`
 	}
