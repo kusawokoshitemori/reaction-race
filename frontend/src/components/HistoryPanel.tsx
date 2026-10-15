@@ -62,6 +62,9 @@ function MatchDetail({
       ) : (
         <>
           <p>{new Date(data.finishedAt).toLocaleString('ja-JP')}</p>
+          {data.entries.length === 0 && (
+            <p role="status">この試合の参加者記録はありません</p>
+          )}
           <ul className="history-list">
             {data.entries.map((e) => (
               <li key={e.participantId}>
