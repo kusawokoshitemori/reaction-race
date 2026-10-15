@@ -5,7 +5,7 @@ export type Participant = {
   guest: boolean
 }
 export type Measurement = 'corrected' | 'unavailable' | 'unstable' | 'bot'
-export type Persistence = 'pending' | 'retrying' | 'saved'
+export type Persistence = 'pending' | 'retrying' | 'saved' | 'failed'
 export type Rating = { before: number; after: number }
 export function isRating(value: unknown): value is Rating {
   return (
@@ -133,6 +133,7 @@ export function parseRoom(data: string): Room {
     r.persistence !== undefined &&
     r.persistence !== 'pending' &&
     r.persistence !== 'retrying' &&
+    r.persistence !== 'failed' &&
     r.persistence !== 'saved'
   )
     throw new Error('invalid persistence')
@@ -181,6 +182,7 @@ export function parseRoom(data: string): Room {
     type: 'room',
     ...(r.persistence === 'pending' ||
     r.persistence === 'retrying' ||
+    r.persistence === 'failed' ||
     r.persistence === 'saved'
       ? { persistence: r.persistence }
       : {}),

@@ -179,8 +179,6 @@ func (m *Manager) settle(r *room) {
 		m.persist(r)
 		m.publish(r)
 		m.logger.Info("match finished", "room_id", r.id, "match_id", r.match.id)
-		if m.store == nil {
-			m.later(r, m.retention, func() { m.remove(r) })
-		}
+		m.later(r, m.retention, func() { m.remove(r) })
 	})
 }

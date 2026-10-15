@@ -172,3 +172,91 @@ func TestGuestStatusSurvivesDepartureAndShutdownCancelsSave(t *testing.T) {
 		t.Fatal("shutdown blocked")
 	}
 }
+
+type failingSaveStore struct {
+	calls   atomic.Int32
+	failure error
+}
+
+func (s *failingSaveStore) Save(context.Context, results.Match) (map[string]results.Rating, error) {
+	s.calls.Add(1)
+	return nil, s.failure
+}
+func (s *failingSaveStore) Rating(context.Context, string, string) (*results.Rating, error) {
+	return nil, pgx.ErrNoRows
+}
+func TestSaveStopsPermanentAndExhaustedFailures(t *testing.T) {
+	for _, tc := range []struct {
+		err   error
+		calls int32
+	}{{results.ErrInvalidMatch, 1}, {results.ErrPayloadConflict, 1}, {results.ErrMissingUser, 1}, {errors.New("temporary"), maxSaveAttempts}} {
+		m, ss := prepared(t, 1)
+		r := ss[0].room
+		store := &failingSaveStore{failure: tc.err}
+		m.mu.Lock()
+		m.store = store
+		m.saveRetry = time.Millisecond
+		m.settle(r)
+		for _, timer := range r.match.timers {
+			timer.Stop()
+		}
+		m.calculate(r)
+		r.phase = "finished"
+		m.persist(r)
+		m.mu.Unlock()
+		m.saves.Wait()
+		m.mu.Lock()
+		state := m.saveStatuses[r.match.id].persistence
+		m.mu.Unlock()
+		if state != "failed" || store.calls.Load() != tc.calls {
+			t.Fatalf("state=%s calls=%d", state, store.calls.Load())
+		}
+	}
+}
+
+func TestPendingSaveSurvivesRoomRetention(t *testing.T) {
+	m, ss := prepared(t, 1)
+	r := ss[0].room
+	store := &saveStore{entered: make(chan results.Match, 2), release: make(chan struct{})}
+	m.mu.Lock()
+	m.store = store
+	m.saveRetry = time.Millisecond
+	m.settle(r)
+	for _, timer := range r.match.timers {
+		timer.Stop()
+	}
+	m.calculate(r)
+	r.phase = "finished"
+	m.persist(r)
+	m.later(r, time.Millisecond, func() { m.remove(r) })
+	m.mu.Unlock()
+	job := <-store.entered
+	deadline := time.Now().Add(time.Second)
+	for {
+		m.mu.Lock()
+		removed := m.rooms[r.id] == nil && m.users[ss[0].uid] == nil
+		status := m.saveStatuses[job.ID]
+		m.mu.Unlock()
+		if removed {
+			if status == nil {
+				t.Fatal("lost save status")
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("room retained")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	next := join(t, m, ss[0].uid)
+	if next.room == r {
+		t.Fatal("returned to finished room")
+	}
+	close(store.release)
+	m.saves.Wait()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.saveStatuses[job.ID].persistence != "saved" {
+		t.Fatal("detached save failed")
+	}
+}
