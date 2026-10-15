@@ -14,7 +14,7 @@ const InputWindow = 3 * time.Second
 type Input struct {
 	Rating        *results.Rating `json:"rating,omitempty"`
 	RawReactionMs *int64          `json:"rawReactionMs,omitempty"`
-	CorrectionMs  int64           `json:"correctionMs"`
+	CorrectionMs  int64           `json:"correctionMs,omitempty"`
 	Measurement   string          `json:"measurement,omitempty"`
 	Rank          *int            `json:"rank"`
 	ParticipantID string          `json:"participantId"`

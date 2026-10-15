@@ -130,6 +130,9 @@ func (m *Manager) calculate(r *room) {
 			input.Rank = &rank
 		}
 		r.match.inputs[input.ParticipantID] = *input
+		if r.roster[i].Bot {
+			continue
+		}
 		pre, post := r.match.links[input.ParticipantID].evidence(r.match.signal, r.match.settled)
 		m.logger.Info("match measurement", "rtt_before_ms", pre, "rtt_after_ms", post, "room_id", r.id, "match_id", r.match.id, "participant_id", input.ParticipantID, "raw_ms", input.RawReactionMs, "correction_ms", input.CorrectionMs, "reaction_ms", input.ReactionMs, "measurement", input.Measurement, "rank", input.Rank)
 	}
