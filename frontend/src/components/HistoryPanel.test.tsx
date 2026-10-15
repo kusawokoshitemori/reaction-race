@@ -67,6 +67,35 @@ test('失敗後に再読み込みすると空の戦績を表示する', async ()
   await userEvent.click(screen.getByRole('button', { name: '再読み込み' }))
   expect(await screen.findByText('まだ戦績がありません')).toBeTruthy()
 })
+test('試合詳細の取得失敗から再試行し、空の詳細でも一覧へ戻れる', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(Response.json({ entries: [entry], hasMore: false }))
+    .mockResolvedValueOnce(new Response('results unavailable', { status: 503 }))
+    .mockResolvedValueOnce(
+      Response.json({
+        matchId: 'm',
+        finishedAt: entry.finishedAt,
+        entries: [],
+      }),
+    )
+  vi.stubGlobal('fetch', fetcher)
+  render(<HistoryPanel user={user} />)
+  await userEvent.click(
+    await screen.findByRole('button', { name: '試合詳細を見る' }),
+  )
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'データを取得できませんでした',
+  )
+  await userEvent.click(screen.getByRole('button', { name: '再読み込み' }))
+  expect(
+    await screen.findByText('この試合の参加者記録はありません'),
+  ).toBeTruthy()
+  expect(fetcher.mock.calls[2][0]).toBe('/api/matches/m')
+  await userEvent.click(screen.getByRole('button', { name: '戦績一覧へ戻る' }))
+  expect(screen.getByRole('button', { name: '試合詳細を見る' })).toBeTruthy()
+  expect(fetcher).toHaveBeenCalledTimes(3)
+})
 test('次ページを取得する', async () => {
   const fetcher = vi
     .fn()
