@@ -12,7 +12,7 @@ import AppFooter from './components/AppFooter'
 import HelpContent from './components/HelpContent'
 import RatingPanel from './components/RatingPanel'
 import RankingPanel from './components/RankingPanel'
-import ResultPanel from './components/ResultPanel'
+import SavedResultPanel from './components/SavedResultPanel'
 import LobbyPanel from './components/LobbyPanel'
 import { serverResult } from './result'
 import type { Room } from './lobby'
@@ -290,8 +290,10 @@ export default function App() {
               onComplete={completeMatch}
             />
           )}
-          {route === '/result' && match && (
-            <ResultPanel
+          {route === '/result' && match && identity.user && (
+            <SavedResultPanel
+              key={`${identity.user.uid}:${match.result.matchId}`}
+              user={identity.user}
               result={match.result}
               standings={match.standings}
               onRematch={() => {

@@ -2,6 +2,7 @@
 package lobby
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/results"
 )
 
 const Capacity = 100
@@ -25,6 +27,7 @@ type Participant struct {
 	Guest bool   `json:"guest"`
 }
 type Snapshot struct {
+	Persistence  string        `json:"persistence,omitempty"`
 	InstanceID   string        `json:"instanceId"`
 	Type         string        `json:"type"`
 	RoomID       string        `json:"roomId"`
@@ -59,6 +62,12 @@ type room struct {
 	match    *match
 }
 type Manager struct {
+	saveRetry       time.Duration
+	saveStatuses    map[string]*saveStatus
+	store           results.Store
+	ctx             context.Context
+	cancel          context.CancelFunc
+	saves           sync.WaitGroup
 	instanceID      string
 	mu              sync.Mutex
 	rooms           map[string]*room
@@ -69,8 +78,13 @@ type Manager struct {
 	closed          bool
 }
 
-func New(wait, retention time.Duration, logger *slog.Logger) *Manager {
-	return &Manager{instanceID: uuid.NewString(), rooms: make(map[string]*room), users: make(map[string]*room), wait: wait, retention: retention, logger: logger}
+func New(wait, retention time.Duration, logger *slog.Logger, stores ...results.Store) *Manager {
+	ctx, cancel := context.WithCancel(context.Background())
+	var store results.Store
+	if len(stores) > 0 {
+		store = stores[0]
+	}
+	return &Manager{instanceID: uuid.NewString(), saveStatuses: make(map[string]*saveStatus), saveRetry: 30 * time.Second, ctx: ctx, cancel: cancel, store: store, rooms: make(map[string]*room), users: make(map[string]*room), wait: wait, retention: retention, logger: logger}
 }
 func (m *Manager) Join(uid, name string, guest bool) (*Subscription, error) {
 	return m.JoinResume(uid, name, guest, "", "")
@@ -154,6 +168,7 @@ func (m *Manager) publish(r *room) {
 	snapshot := m.snapshot(r)
 	if r.match != nil {
 		snapshot.MatchID = r.match.id
+		snapshot.Persistence = r.match.persistence
 		if !r.match.signal.IsZero() {
 			snapshot.SignalAt = r.match.signal.UnixMilli()
 		}
@@ -265,12 +280,14 @@ func (m *Manager) Finish(id string) {
 	}
 }
 func (m *Manager) Close() {
+	m.cancel()
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.closed = true
 	for _, r := range m.rooms {
 		m.remove(r)
 	}
+	m.mu.Unlock()
+	m.saves.Wait()
 }
 
 // Roster returns a copy of the frozen roster, never mutable lobby state.

@@ -1,7 +1,10 @@
 import type { Outcome } from './navigation'
-import type { Measurement } from './lobby'
+import type { Measurement, Persistence } from './lobby'
 
 export type MatchResult = {
+  matchId?: string
+  persistence?: Persistence
+  guest?: boolean
   measurement?: Measurement
   participants: number
   rating: { before: number; after: number } | null
@@ -167,7 +170,10 @@ export function serverResult(room: import('./lobby').Room): {
   )
   const shared = {
     participants: room.capacity,
-    rating: null,
+    matchId: room.matchId,
+    persistence: room.persistence,
+    guest: room.participants.find((p) => p.id === room.you)?.guest ?? true,
+    rating: room.persistence === 'saved' ? (own.rating ?? null) : null,
     rank: null,
     measurement: own.measurement,
   }

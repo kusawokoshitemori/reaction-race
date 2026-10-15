@@ -18,6 +18,7 @@ import (
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/identity"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/lobby"
 	"github.com/kusawokoshitemori/reaction-race/backend/internal/profile"
+	"github.com/kusawokoshitemori/reaction-race/backend/internal/results"
 )
 
 func main() {
@@ -61,7 +62,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		}
 		api := http.NewServeMux()
 		tickets := identity.NewTickets()
-		rooms := lobby.New(10*time.Second, 2*time.Minute, logger)
+		rooms := lobby.New(10*time.Second, 2*time.Minute, logger, results.Postgres{Pool: pool})
 		defer rooms.Close()
 		origin := os.Getenv("APP_ORIGIN")
 		if origin == "" {
@@ -69,6 +70,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		}
 		mux.Handle("/api/lobby", tickets.UpgradeGuard(origin, lobby.Handler(rooms, profile.Postgres{Pool: pool}, origin)))
 		api.HandleFunc("POST /api/ws-ticket", tickets.Issue)
+		api.Handle("GET /api/matches/{id}/rating", rooms.RatingHandler())
 		api.Handle("/", profile.Handler(profile.Postgres{Pool: pool}, logger))
 		mux.Handle("/api/", identity.Middleware(authClient, api))
 	} else {
