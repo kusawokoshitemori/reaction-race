@@ -9,15 +9,20 @@ import (
 
 const InputWindow = 3 * time.Second
 
-// Input contains only server measurements. Rank, RTT correction and persistence
-// belong to task 09; raw receive times remain available for that calculation.
+// Input contains only server measurements; reactionMs is provisional until finished.
 type Input struct {
+	RawReactionMs *int64 `json:"rawReactionMs,omitempty"`
+	CorrectionMs  int64  `json:"correctionMs"`
+	Measurement   string `json:"measurement,omitempty"`
+	Rank          *int   `json:"rank"`
 	ParticipantID string `json:"participantId"`
 	Outcome       string `json:"outcome"`
 	ReceivedAt    int64  `json:"receivedAt,omitempty"`
 	ReactionMs    *int64 `json:"reactionMs"`
 }
 type match struct {
+	settled time.Time
+	links   map[string]*latency
 	id      string
 	signal  time.Time
 	inputs  map[string]Input
@@ -65,6 +70,12 @@ func (m *Manager) ready(r *room) {
 		}
 		r.phase = "signal"
 		r.match.signal = time.Now()
+		r.match.links = make(map[string]*latency)
+		for _, member := range r.members {
+			if member.connection != nil {
+				r.match.links[member.participant.ID] = member.connection.latency
+			}
+		}
 		r.deadline = r.match.signal.Add(InputWindow)
 		m.publish(r)
 		m.logger.Info("match signal", "room_id", r.id, "match_id", r.match.id, "signal_at", r.match.signal, "deadline", r.deadline)
@@ -136,6 +147,7 @@ func (m *Manager) settle(r *room) {
 		return
 	}
 	r.phase = "settling"
+	r.match.settled = time.Now()
 	for _, timer := range r.match.timers {
 		timer.Stop()
 	}
@@ -150,11 +162,12 @@ func (m *Manager) settle(r *room) {
 	}
 	m.publish(r)
 	m.logger.Info("match settled", "room_id", r.id, "match_id", r.match.id, "participants", len(r.match.results))
-	// Explicit boundary for task 09's post-match measurement/calculation stage.
-	m.later(r, 100*time.Millisecond, func() {
+	// Bound the post-match measurement even when a participant disconnects.
+	m.later(r, postMeasurementWindow, func() {
 		if r.phase != "settling" {
 			return
 		}
+		m.calculate(r)
 		r.phase = "finished"
 		m.publish(r)
 		m.logger.Info("match finished", "room_id", r.id, "match_id", r.match.id)

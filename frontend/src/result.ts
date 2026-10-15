@@ -1,6 +1,8 @@
 import type { Outcome } from './navigation'
+import type { Measurement } from './lobby'
 
 export type MatchResult = {
+  measurement?: Measurement
   participants: number
   rating: { before: number; after: number } | null
 } & (
@@ -123,7 +125,7 @@ export function createDemoStandings(result: MatchResult): MatchStanding[] {
   )
 }
 
-// Task 08 exposes raw server observations. Task 09 will supply corrected ranks.
+// Use the server's corrected result and competition rank without recomputing them.
 export function serverResult(room: import('./lobby').Room): {
   result: MatchResult
   standings: MatchStanding[]
@@ -144,13 +146,29 @@ export function serverResult(room: import('./lobby').Room): {
       rank: null,
     }
     return input.outcome === 'success'
-      ? { ...player, outcome: input.outcome, reactionMs: input.reactionMs }
+      ? {
+          ...player,
+          rank: input.rank ?? null,
+          outcome: input.outcome,
+          reactionMs: input.reactionMs,
+        }
       : { ...player, outcome: input.outcome, reactionMs: null }
   })
-  const shared = { participants: room.capacity, rating: null, rank: null }
+  standings.sort((a, b) => (a.rank ?? 101) - (b.rank ?? 101))
+  const shared = {
+    participants: room.capacity,
+    rating: null,
+    rank: null,
+    measurement: own.measurement,
+  }
   const result: MatchResult =
     own.outcome === 'success'
-      ? { ...shared, outcome: own.outcome, reactionMs: own.reactionMs }
+      ? {
+          ...shared,
+          rank: own.rank ?? null,
+          outcome: own.outcome,
+          reactionMs: own.reactionMs,
+        }
       : { ...shared, outcome: own.outcome, reactionMs: null }
   return { result, standings }
 }

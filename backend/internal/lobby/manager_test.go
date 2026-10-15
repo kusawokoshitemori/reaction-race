@@ -154,7 +154,7 @@ func TestRetentionClosesSubscriptions(t *testing.T) {
 	m := testManager(t, 5*time.Millisecond)
 	m.retention = 15 * time.Millisecond
 	s := join(t, m, "a")
-	deadline := time.After(10 * time.Second)
+	deadline := time.After(10*time.Second + postMeasurementWindow)
 	for {
 		select {
 		case _, ok := <-s.Updates:

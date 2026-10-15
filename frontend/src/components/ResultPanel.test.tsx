@@ -101,3 +101,27 @@ test('レート増減の符号と変動なし', () => {
   expect(formatRatingDelta(-7)).toBe('−7')
   expect(formatRatingDelta(0)).toBe('±0')
 })
+
+test('補正済みと参考記録の表示を区別する', () => {
+  const result = {
+    participants: 100,
+    rating: null,
+    outcome: 'success' as const,
+    rank: 1,
+    reactionMs: 200,
+    measurement: 'corrected' as const,
+  }
+  const view = render(
+    <ResultPanel result={result} standings={[]} onRematch={() => {}} />,
+  )
+  expect(screen.getByText('通信遅延を補正した記録')).toBeTruthy()
+  view.rerender(
+    <ResultPanel
+      result={{ ...result, rank: null, measurement: 'unstable' }}
+      standings={[]}
+      onRematch={() => {}}
+    />,
+  )
+  expect(screen.getByText('参考記録')).toBeTruthy()
+  expect(screen.getByText('補正できないため順位対象外')).toBeTruthy()
+})

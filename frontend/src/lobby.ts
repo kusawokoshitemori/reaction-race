@@ -4,7 +4,15 @@ export type Participant = {
   bot: boolean
   guest: boolean
 }
-export type ServerInput = { participantId: string; receivedAt?: number } & (
+export type Measurement = 'corrected' | 'unavailable' | 'unstable' | 'bot'
+export type ServerInput = {
+  participantId: string
+  receivedAt?: number
+  rawReactionMs?: number
+  correctionMs?: number
+  measurement?: Measurement
+  rank?: number | null
+} & (
   | { outcome: 'success'; reactionMs: number }
   | { outcome: 'flying' | 'no-record'; reactionMs: null }
 )
@@ -45,6 +53,28 @@ function isInput(value: unknown): value is ServerInput {
   return (
     isRecord(value) &&
     typeof value.participantId === 'string' &&
+    (value.rank == null ||
+      (value.outcome === 'success' &&
+        typeof value.rank === 'number' &&
+        Number.isInteger(value.rank) &&
+        value.rank >= 1 &&
+        value.rank <= 100 &&
+        (value.measurement === 'corrected' || value.measurement === 'bot'))) &&
+    (value.measurement === undefined ||
+      value.measurement === 'corrected' ||
+      value.measurement === 'unavailable' ||
+      value.measurement === 'unstable' ||
+      value.measurement === 'bot') &&
+    (value.rawReactionMs === undefined ||
+      (typeof value.rawReactionMs === 'number' &&
+        Number.isInteger(value.rawReactionMs) &&
+        value.rawReactionMs >= 0 &&
+        value.rawReactionMs < 3000)) &&
+    (value.correctionMs === undefined ||
+      (typeof value.correctionMs === 'number' &&
+        Number.isInteger(value.correctionMs) &&
+        value.correctionMs >= 0 &&
+        value.correctionMs <= 500)) &&
     (value.receivedAt === undefined ||
       (typeof value.receivedAt === 'number' &&
         Number.isFinite(value.receivedAt))) &&

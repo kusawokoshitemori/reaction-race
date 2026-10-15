@@ -158,10 +158,17 @@ func TestSocketMatchLifecycle(t *testing.T) {
 	}
 	a.WriteJSON(map[string]string{"type": "tap"})
 	a.WriteJSON(map[string]string{"type": "tap"})
+	// Both clients must keep draining snapshots and answering pings while
+	// the post-match measurement runs, just like browser WebSockets do.
+	finishedA := make(chan Snapshot, 1)
+	go func() {
+		defer close(finishedA)
+		finishedA <- readPhase(a, "finished")
+	}()
 	readPhase(b, "signal")
 	b.WriteJSON(map[string]string{"type": "tap"})
-	finalA := readPhase(a, "finished")
 	finalB := readPhase(b, "finished")
+	finalA := <-finishedA
 	if finalA.Input.Outcome != "flying" || finalB.Input.Outcome != "success" || len(finalA.Results) != 100 || !reflect.DeepEqual(finalA.Results, finalB.Results) {
 		t.Fatal("inconsistent results")
 	}

@@ -31,3 +31,58 @@ test('サーバーの実参加者と結果を使い、未計算の順位・レ�
     expect(() => serverResult({ ...room, phase: 'signal' })).toThrow()
   }
 })
+
+test('補正後の時間と同順位をサーバーから引き継ぎ、参考記録を末尾に置く', () => {
+  const room: Room = {
+    type: 'room',
+    roomId: 'r',
+    matchId: 'm',
+    phase: 'finished',
+    capacity: 3,
+    you: 'b',
+    deadline: 4000,
+    serverTime: 6000,
+    participants: ['a', 'b', 'c'].map((id) => ({
+      id,
+      name: id,
+      bot: false,
+      guest: true,
+    })),
+    results: [
+      {
+        participantId: 'c',
+        outcome: 'success',
+        reactionMs: 150,
+        measurement: 'unavailable',
+        rank: null,
+      },
+      {
+        participantId: 'a',
+        outcome: 'success',
+        reactionMs: 200,
+        rawReactionMs: 220,
+        correctionMs: 20,
+        measurement: 'corrected',
+        rank: 1,
+      },
+      {
+        participantId: 'b',
+        outcome: 'success',
+        reactionMs: 200,
+        rawReactionMs: 380,
+        correctionMs: 180,
+        measurement: 'corrected',
+        rank: 1,
+      },
+    ],
+  }
+  const { result, standings } = serverResult(room)
+  expect(result).toMatchObject({
+    rank: 1,
+    reactionMs: 200,
+    measurement: 'corrected',
+    rating: null,
+  })
+  expect(standings.map((entry) => entry.id)).toEqual(['a', 'b', 'c'])
+  expect(standings.map((entry) => entry.rank)).toEqual([1, 1, null])
+})
