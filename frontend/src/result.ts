@@ -58,7 +58,12 @@ export function formatRatingDelta(delta: number): string {
   return delta === 0 ? '±0' : delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`
 }
 
-export type MatchStanding = { id: string; name: string; isYou: boolean } & (
+export type MatchStanding = {
+  measurement?: Measurement
+  id: string
+  name: string
+  isYou: boolean
+} & (
   | { outcome: 'success'; rank: number | null; reactionMs: number }
   | { outcome: 'flying' | 'no-record'; rank: null; reactionMs: null }
 )
@@ -143,6 +148,7 @@ export function serverResult(room: import('./lobby').Room): {
     )
     if (!participant) throw new Error('missing participant')
     const player = {
+      measurement: input.measurement,
       id: input.participantId,
       name: participant.name,
       isYou: input.participantId === room.you,
@@ -157,7 +163,11 @@ export function serverResult(room: import('./lobby').Room): {
         }
       : { ...player, outcome: input.outcome, reactionMs: null }
   })
-  standings.sort((a, b) => (a.rank ?? 101) - (b.rank ?? 101))
+  standings.sort(
+    (a, b) =>
+      (a.rank ?? (a.outcome === 'success' ? 101 : 102)) -
+      (b.rank ?? (b.outcome === 'success' ? 101 : 102)),
+  )
   const shared = {
     participants: room.capacity,
     matchId: room.matchId,

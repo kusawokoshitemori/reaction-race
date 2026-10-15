@@ -168,3 +168,34 @@ func TestSocketLatencyCorrection(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedResultsHideTimingEvidence(t *testing.T) {
+	m, ss := prepared(t, 2)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r := ss[0].room
+	ms := int64(200)
+	r.phase = "finished"
+	r.match.results = []Input{{ParticipantID: r.roster[0].ID, Outcome: "success", ReactionMs: &ms, RawReactionMs: &ms, CorrectionMs: 20, ReceivedAt: 123}}
+	m.publish(r)
+	snapshot := <-ss[1].Updates
+	if snapshot.Results[0].RawReactionMs != nil || snapshot.Results[0].CorrectionMs != 0 || snapshot.Results[0].ReceivedAt != 0 {
+		t.Fatal("timing evidence exposed")
+	}
+	if r.match.results[0].RawReactionMs == nil {
+		t.Fatal("internal evidence modified")
+	}
+}
+
+func TestExpiredPongKeepsConnectionAliveWithoutSampling(t *testing.T) {
+	l := &latency{}
+	token := l.ping(time.Now().Add(-2 * time.Second))
+	var deadline time.Time
+	handler := pongHandler(l, func(value time.Time) error { deadline = value; return nil })
+	if err := handler(token); err != nil {
+		t.Fatal(err)
+	}
+	if len(l.samples) != 0 || time.Until(deadline) < 44*time.Second {
+		t.Fatal("liveness coupled to measurement")
+	}
+}

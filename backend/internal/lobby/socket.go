@@ -56,13 +56,7 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 			return
 		}
 		defer manager.Leave(s, false)
-		c.SetPongHandler(func(token string) error {
-			received := time.Now()
-			if s.latency.pong(token, received) {
-				return c.SetReadDeadline(received.Add(45 * time.Second))
-			}
-			return nil
-		})
+		c.SetPongHandler(pongHandler(s.latency, c.SetReadDeadline))
 		_ = c.SetReadDeadline(time.Now().Add(45 * time.Second))
 		done := make(chan struct{})
 		go func() {
@@ -151,4 +145,13 @@ func decodeCommand(data []byte) string {
 }
 func closeSocket(c *websocket.Conn, code int, reason string) {
 	_ = c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(time.Second))
+}
+
+// Transport liveness is independent of whether a Pong is usable as an RTT sample.
+func pongHandler(l *latency, deadline func(time.Time) error) func(string) error {
+	return func(token string) error {
+		received := time.Now()
+		l.pong(token, received)
+		return deadline(received.Add(45 * time.Second))
+	}
 }
