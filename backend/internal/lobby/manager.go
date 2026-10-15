@@ -40,6 +40,7 @@ type Subscription struct {
 	Updates chan Snapshot
 	uid     string
 	room    *room
+	latency *latency
 }
 type member struct {
 	participant Participant
@@ -78,7 +79,7 @@ func (m *Manager) Join(uid, name string, guest bool) (*Subscription, error) {
 		if member.connection != nil {
 			return nil, ErrDuplicate
 		}
-		s := &Subscription{make(chan Snapshot, 1), uid, r}
+		s := &Subscription{make(chan Snapshot, 1), uid, r, &latency{}}
 		member.connection = s
 		m.publish(r)
 		m.logger.Info("lobby reconnected", "room_id", r.id, "participant_id", member.participant.ID)
@@ -103,7 +104,7 @@ func (m *Manager) Join(uid, name string, guest bool) (*Subscription, error) {
 			}
 		})
 	}
-	s := &Subscription{make(chan Snapshot, 1), uid, r}
+	s := &Subscription{make(chan Snapshot, 1), uid, r, &latency{}}
 	p := Participant{ID: uuid.NewString(), Name: name, Guest: guest}
 	r.members[uid] = &member{p, s}
 	r.roster = append(r.roster, p)
@@ -132,6 +133,11 @@ func (m *Manager) publish(r *room) {
 		}
 		if r.phase == "finished" {
 			snapshot.Results = append([]Input(nil), r.match.results...)
+			for i := range snapshot.Results {
+				snapshot.Results[i].RawReactionMs = nil
+				snapshot.Results[i].CorrectionMs = 0
+				snapshot.Results[i].ReceivedAt = 0
+			}
 		}
 	}
 	for _, p := range r.members {

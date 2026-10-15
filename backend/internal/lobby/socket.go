@@ -45,7 +45,7 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 		defer c.Close()
 		c.SetReadLimit(1024)
 		_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
-		c.SetPongHandler(func(string) error { return c.SetReadDeadline(time.Now().Add(45 * time.Second)) })
+
 		if readCommand(c) != "join" {
 			closeSocket(c, 1008, "join_required")
 			return
@@ -56,12 +56,13 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 			return
 		}
 		defer manager.Leave(s, false)
+		c.SetPongHandler(pongHandler(s.latency, c.SetReadDeadline))
 		_ = c.SetReadDeadline(time.Now().Add(45 * time.Second))
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
 			defer c.Close()
-			ticker := time.NewTicker(15 * time.Second)
+			ticker := time.NewTicker(probeInterval)
 			defer ticker.Stop()
 			for {
 				select {
@@ -75,7 +76,11 @@ func Handler(manager *Manager, store profile.Store, origin string) http.Handler 
 						return
 					}
 				case <-ticker.C:
-					if c.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)) != nil {
+					token := s.latency.ping(time.Now())
+					if token == "" {
+						continue
+					}
+					if c.WriteControl(websocket.PingMessage, []byte(token), time.Now().Add(5*time.Second)) != nil {
 						return
 					}
 				case <-r.Context().Done():
@@ -140,4 +145,13 @@ func decodeCommand(data []byte) string {
 }
 func closeSocket(c *websocket.Conn, code int, reason string) {
 	_ = c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(time.Second))
+}
+
+// Transport liveness is independent of whether a Pong is usable as an RTT sample.
+func pongHandler(l *latency, deadline func(time.Time) error) func(string) error {
+	return func(token string) error {
+		received := time.Now()
+		l.pong(token, received)
+		return deadline(received.Add(45 * time.Second))
+	}
 }

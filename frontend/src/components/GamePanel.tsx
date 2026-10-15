@@ -189,7 +189,7 @@ export default function GamePanel({ room, active, onTap }: Props) {
               : `反応時間 ${reactionMs}ミリ秒`
           }
         >
-          <span>反応時間</span>
+          <span>反応時間（補正前）</span>
           <strong>
             {reactionMs === null ? '—.———' : (reactionMs / 1000).toFixed(3)}
           </strong>

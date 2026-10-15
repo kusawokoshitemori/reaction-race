@@ -43,7 +43,7 @@ export default function ResultPanel({
               {result.rank === null ? (
                 <strong className="result-empty">
                   {serverStandings && result.outcome === 'success'
-                    ? '未計算'
+                    ? '参考記録'
                     : '順位なし'}
                 </strong>
               ) : (
@@ -69,7 +69,9 @@ export default function ResultPanel({
               <small>
                 {result.outcome === 'success'
                   ? serverStandings
-                    ? 'サーバー受信時間（補正前）'
+                    ? result.measurement === 'corrected'
+                      ? '通信遅延を補正した記録'
+                      : '補正できないため順位対象外'
                     : '今回の記録'
                   : '有効な入力がありません'}
               </small>
@@ -110,7 +112,7 @@ export default function ResultPanel({
       </div>
       <p className="result-demo-note">
         {serverStandings
-          ? 'サーバーが確定した入力結果です。遅延補正・順位計算・保存は今後対応します。'
+          ? '通信遅延を補正して順位を決定します。同タイムは同順位です。計測不足・不安定な回線の記録は順位対象外です。端末の描画・入力遅延は補正できません。結果の保存は未対応です。'
           : '自分の反応時間はブラウザでの実測値です。他の参加者・順位・レートはモックで、保存はされません。'}
       </p>
       <div className="result-actions">
@@ -181,6 +183,9 @@ export default function ResultPanel({
                       <>
                         {entry.reactionMs}
                         <small> ms</small>
+                        {entry.rank === null && (
+                          <small>参考記録（順位対象外）</small>
+                        )}
                       </>
                     ) : (
                       <span className="match-no-record">

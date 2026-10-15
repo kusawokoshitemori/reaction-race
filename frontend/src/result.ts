@@ -1,6 +1,8 @@
 import type { Outcome } from './navigation'
+import type { Measurement } from './lobby'
 
 export type MatchResult = {
+  measurement?: Measurement
   participants: number
   rating: { before: number; after: number } | null
 } & (
@@ -53,7 +55,12 @@ export function formatRatingDelta(delta: number): string {
   return delta === 0 ? '±0' : delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`
 }
 
-export type MatchStanding = { id: string; name: string; isYou: boolean } & (
+export type MatchStanding = {
+  measurement?: Measurement
+  id: string
+  name: string
+  isYou: boolean
+} & (
   | { outcome: 'success'; rank: number | null; reactionMs: number }
   | { outcome: 'flying' | 'no-record'; rank: null; reactionMs: null }
 )
@@ -123,7 +130,7 @@ export function createDemoStandings(result: MatchResult): MatchStanding[] {
   )
 }
 
-// Task 08 exposes raw server observations. Task 09 will supply corrected ranks.
+// Use the server's corrected result and competition rank without recomputing them.
 export function serverResult(room: import('./lobby').Room): {
   result: MatchResult
   standings: MatchStanding[]
@@ -138,19 +145,40 @@ export function serverResult(room: import('./lobby').Room): {
     )
     if (!participant) throw new Error('missing participant')
     const player = {
+      measurement: input.measurement,
       id: input.participantId,
       name: participant.name,
       isYou: input.participantId === room.you,
       rank: null,
     }
     return input.outcome === 'success'
-      ? { ...player, outcome: input.outcome, reactionMs: input.reactionMs }
+      ? {
+          ...player,
+          rank: input.rank ?? null,
+          outcome: input.outcome,
+          reactionMs: input.reactionMs,
+        }
       : { ...player, outcome: input.outcome, reactionMs: null }
   })
-  const shared = { participants: room.capacity, rating: null, rank: null }
+  standings.sort(
+    (a, b) =>
+      (a.rank ?? (a.outcome === 'success' ? 101 : 102)) -
+      (b.rank ?? (b.outcome === 'success' ? 101 : 102)),
+  )
+  const shared = {
+    participants: room.capacity,
+    rating: null,
+    rank: null,
+    measurement: own.measurement,
+  }
   const result: MatchResult =
     own.outcome === 'success'
-      ? { ...shared, outcome: own.outcome, reactionMs: own.reactionMs }
+      ? {
+          ...shared,
+          rank: own.rank ?? null,
+          outcome: own.outcome,
+          reactionMs: own.reactionMs,
+        }
       : { ...shared, outcome: own.outcome, reactionMs: null }
   return { result, standings }
 }
