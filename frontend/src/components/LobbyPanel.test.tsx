@@ -56,6 +56,7 @@ test('人数確定とボット補充を表示し、退出時に接続を閉じ�
   const base = {
     type: 'room',
     roomId: 'r',
+    you: 'p',
     phase: 'waiting',
     deadline: 11000,
     serverTime: 1000,
@@ -69,6 +70,7 @@ test('人数確定とボット補充を表示し、退出時に接続を閉じ�
       data: JSON.stringify({
         ...base,
         phase: 'locked',
+        you: '0',
         participants: Array.from({ length: 100 }, (_, i) => ({
           id: String(i),
           name: String(i),
@@ -130,4 +132,73 @@ test('キーボードのTabとEnterで退出を実行できる', async () => {
   )
   await keyboard.keyboard('{Enter}')
   expect(onLeave).toHaveBeenCalledTimes(1)
+})
+
+test('サーバーの合図と受付確認に従い一度だけ入力し、確定結果を通知する', async () => {
+  const onComplete = vi.fn()
+  render(<LobbyPanel user={user} onLeave={vi.fn()} onComplete={onComplete} />)
+  const socket = await connection()
+  const participants = Array.from({ length: 100 }, (_, i) => ({
+    id: String(i),
+    name: `参加者${i}`,
+    bot: i > 0,
+    guest: i === 0,
+  }))
+  const room = {
+    type: 'room',
+    roomId: 'r',
+    you: '0',
+    matchId: 'm',
+    phase: 'ready',
+    deadline: 0,
+    serverTime: 1000,
+    capacity: 100,
+    participants,
+  }
+  act(() => socket.onmessage?.({ data: JSON.stringify(room) }))
+  expect(screen.getByRole('heading', { name: '構え' })).toBeTruthy()
+  act(() =>
+    socket.onmessage?.({
+      data: JSON.stringify({
+        ...room,
+        phase: 'signal',
+        signalAt: 2000,
+        deadline: 5000,
+      }),
+    }),
+  )
+  expect(screen.getByRole('heading', { name: '!' })).toBeTruthy()
+  fireEvent.keyDown(window, { code: 'Space' })
+  fireEvent.keyDown(window, { code: 'Space' })
+  expect(
+    socket.send.mock.calls.filter(([message]) => message === '{"type":"tap"}'),
+  ).toHaveLength(1)
+  expect(screen.getByRole('heading', { name: '送信中' })).toBeTruthy()
+  const input = { participantId: '0', outcome: 'success', reactionMs: 200 }
+  act(() =>
+    socket.onmessage?.({
+      data: JSON.stringify({
+        ...room,
+        phase: 'signal',
+        signalAt: 2000,
+        deadline: 5000,
+        input,
+      }),
+    }),
+  )
+  expect(screen.getByRole('heading', { name: '一閃' })).toBeTruthy()
+  const finished = {
+    ...room,
+    phase: 'finished',
+    input,
+    results: participants.map((p) =>
+      p.id === '0'
+        ? input
+        : { participantId: p.id, outcome: 'no-record', reactionMs: null },
+    ),
+  }
+  act(() => socket.onmessage?.({ data: JSON.stringify(finished) }))
+  act(() => socket.onmessage?.({ data: JSON.stringify(finished) }))
+  expect(onComplete).toHaveBeenCalledTimes(1)
+  expect(onComplete).toHaveBeenCalledWith(finished)
 })

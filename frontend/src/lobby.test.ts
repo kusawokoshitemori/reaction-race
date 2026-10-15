@@ -5,6 +5,7 @@ const participant = { id: 'a', name: 'ゲスト', bot: false, guest: true }
 const room: Room = {
   type: 'room',
   roomId: 'room-1',
+  you: 'a',
   phase: 'waiting',
   deadline: 11000,
   serverTime: 1000,
@@ -16,6 +17,7 @@ test('待機通知・100人確定通知を検証する', () => {
   const locked = {
     ...room,
     phase: 'locked',
+    you: '0',
     participants: Array.from({ length: 100 }, (_, i) => ({
       ...participant,
       id: String(i),
@@ -62,4 +64,44 @@ test('チケットをunknownから検証し、不正なレスポンスを拒否�
   }
   assert.match(closeMessage('already_connected'), /直前の接続/)
   assert.match(closeMessage('already_connected'), /しばらく待って/)
+})
+
+test('試合通知と自分の受付確認を検証し、不完全な結果を拒否する', () => {
+  const participants = Array.from({ length: 100 }, (_, i) => ({
+    ...participant,
+    id: String(i),
+  }))
+  const signal = {
+    ...room,
+    you: '0',
+    phase: 'signal',
+    matchId: 'match-1',
+    signalAt: 1000,
+    deadline: 4000,
+    participants,
+  }
+  assert.equal(parseRoom(JSON.stringify(signal)).phase, 'signal')
+  const results = participants.map((p) => ({
+    participantId: p.id,
+    outcome: 'no-record',
+    reactionMs: null,
+  }))
+  const finished = { ...signal, phase: 'finished', results }
+  assert.equal(parseRoom(JSON.stringify(finished)).results?.length, 100)
+  for (const invalid of [
+    { ...signal, you: 'unknown' },
+    { ...signal, matchId: '' },
+    { ...signal, deadline: 4001 },
+    {
+      ...signal,
+      input: { participantId: '1', outcome: 'success', reactionMs: 200 },
+    },
+    {
+      ...signal,
+      input: { participantId: '0', outcome: 'success', reactionMs: 3000 },
+    },
+    { ...finished, results: results.slice(1) },
+    { ...finished, results: results.map(() => results[0]) },
+  ])
+    assert.throws(() => parseRoom(JSON.stringify(invalid)))
 })

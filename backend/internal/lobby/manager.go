@@ -1,4 +1,4 @@
-// Package lobby owns matchmaking and immutable rosters. All mutations are serialized.
+// Package lobby owns matchmaking, frozen rosters and match progression. All mutations are serialized.
 package lobby
 
 import (
@@ -30,6 +30,11 @@ type Snapshot struct {
 	ServerTime   int64         `json:"serverTime"`
 	Capacity     int           `json:"capacity"`
 	Participants []Participant `json:"participants"`
+	You          string        `json:"you"`
+	MatchID      string        `json:"matchId,omitempty"`
+	SignalAt     int64         `json:"signalAt,omitempty"`
+	Input        *Input        `json:"input,omitempty"`
+	Results      []Input       `json:"results,omitempty"`
 }
 type Subscription struct {
 	Updates chan Snapshot
@@ -47,6 +52,7 @@ type room struct {
 	members  map[string]*member
 	roster   []Participant
 	timer    *time.Timer
+	match    *match
 }
 type Manager struct {
 	mu              sync.Mutex
@@ -111,12 +117,33 @@ func (m *Manager) Join(uid, name string, guest bool) (*Subscription, error) {
 	return s, nil
 }
 func (m *Manager) snapshot(r *room) Snapshot {
-	return Snapshot{Type: "room", RoomID: r.id, Phase: r.phase, Deadline: r.deadline.UnixMilli(), ServerTime: time.Now().UnixMilli(), Capacity: Capacity, Participants: append([]Participant(nil), r.roster...)}
+	deadline := int64(0)
+	if !r.deadline.IsZero() {
+		deadline = r.deadline.UnixMilli()
+	}
+	return Snapshot{Type: "room", RoomID: r.id, Phase: r.phase, Deadline: deadline, ServerTime: time.Now().UnixMilli(), Capacity: Capacity, Participants: append([]Participant(nil), r.roster...)}
 }
 func (m *Manager) publish(r *room) {
 	snapshot := m.snapshot(r)
+	if r.match != nil {
+		snapshot.MatchID = r.match.id
+		if !r.match.signal.IsZero() {
+			snapshot.SignalAt = r.match.signal.UnixMilli()
+		}
+		if r.phase == "finished" {
+			snapshot.Results = append([]Input(nil), r.match.results...)
+		}
+	}
 	for _, p := range r.members {
 		if s := p.connection; s != nil {
+			snapshot.You = p.participant.ID
+			snapshot.Input = nil
+			if r.match != nil {
+				if input, ok := r.match.inputs[p.participant.ID]; ok {
+					copy := input
+					snapshot.Input = &copy
+				}
+			}
 			// Coalesce full snapshots so a slow reader never blocks another room.
 			select {
 			case <-s.Updates:
@@ -141,8 +168,7 @@ func (m *Manager) freeze(r *room) {
 	}
 	m.logger.Info("lobby locked", "room_id", r.id, "humans", len(r.members), "bots", Capacity-len(r.members))
 	m.publish(r)
-	// Bounded retention until task 08 owns match completion and calls Finish.
-	r.timer = time.AfterFunc(m.retention, func() { m.Finish(r.id) })
+	m.startMatch(r)
 }
 
 // Leave keeps the frozen roster. Unexpected disconnects may resume until Finish.
@@ -180,6 +206,11 @@ func (m *Manager) Leave(s *Subscription, explicit bool) {
 }
 func (m *Manager) remove(r *room) {
 	r.timer.Stop()
+	if r.match != nil {
+		for _, timer := range r.match.timers {
+			timer.Stop()
+		}
+	}
 	delete(m.rooms, r.id)
 	if m.waiting == r {
 		m.waiting = nil
@@ -210,12 +241,12 @@ func (m *Manager) Close() {
 	}
 }
 
-// Roster returns a copy for task 08, never mutable lobby state.
+// Roster returns a copy of the frozen roster, never mutable lobby state.
 func (m *Manager) Roster(id string) ([]Participant, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	r := m.rooms[id]
-	if r == nil || r.phase != "locked" {
+	if r == nil || r.phase == "waiting" {
 		return nil, false
 	}
 	return append([]Participant(nil), r.roster...), true

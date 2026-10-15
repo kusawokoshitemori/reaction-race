@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
 import {
   closeMessage,
@@ -6,16 +6,31 @@ import {
   parseTicket,
   remainingSeconds,
 } from '../lobby'
-import type { LobbyState } from '../lobby'
+import type { LobbyState, Room } from '../lobby'
 import './LobbyPanel.css'
+import GamePanel from './GamePanel'
 
 export default function LobbyPanel({
   user,
   onLeave,
+  onComplete,
+  active = true,
 }: {
   user: Pick<User, 'getIdToken'>
   onLeave: () => void
+  onComplete?: (room: Room) => void
+  active?: boolean
 }) {
+  const socketRef = useRef<WebSocket | null>(null)
+  const completed = useRef(false)
+  const completeRef = useRef(onComplete)
+  useEffect(() => {
+    completeRef.current = onComplete
+  }, [onComplete])
+  const tap = useCallback(() => {
+    if (socketRef.current?.readyState === WebSocket.OPEN)
+      socketRef.current.send(JSON.stringify({ type: 'tap' }))
+  }, [])
   const userRef = useRef(user)
   useEffect(() => {
     userRef.current = user
@@ -64,6 +79,7 @@ export default function LobbyPanel({
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
         url.searchParams.set('ticket', value)
         socket = new WebSocket(url)
+        socketRef.current = socket
         socket.onopen = () => {
           if (!disposed) socket?.send(JSON.stringify({ type: 'join' }))
         }
@@ -76,6 +92,10 @@ export default function LobbyPanel({
             setReceivedAt(received)
             setNow(received)
             setState({ status: 'connected', room, error: '' })
+            if (room.phase === 'finished' && !completed.current) {
+              completed.current = true
+              completeRef.current?.(room)
+            }
           } catch {
             fail('待機室の情報を読み取れませんでした。再試行してください。')
             socket?.close()
@@ -99,12 +119,21 @@ export default function LobbyPanel({
       if (socket?.readyState === WebSocket.OPEN)
         socket.send(JSON.stringify({ type: 'leave' }))
       socket?.close()
+      socketRef.current = null
     }
   }, [attempt])
   const room = state.room
   const locked = room?.phase === 'locked'
   const humans = room?.participants.filter((p) => !p.bot).length ?? 0
   const bots = room?.participants.filter((p) => p.bot).length ?? 0
+  if (
+    room &&
+    ['ready', 'signal', 'settling'].includes(room.phase) &&
+    state.status === 'connected'
+  )
+    return (
+      <GamePanel key={room.matchId} room={room} active={active} onTap={tap} />
+    )
   return (
     <section className="lobby-panel" aria-labelledby="lobby-heading">
       <div className="lobby-topline">
@@ -139,11 +168,7 @@ export default function LobbyPanel({
             <small>空き枠にはボットが参加します。</small>
           </p>
         )}
-        {locked && (
-          <p className="lobby-note">
-            参加者の確定まで完了しました。対戦機能は準備中です。
-          </p>
-        )}
+        {locked && <p className="lobby-note">まもなく試合が始まります。</p>}
         {state.error && (
           <div className="lobby-error" role="alert">
             <p>{state.error}</p>

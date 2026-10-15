@@ -1,86 +1,28 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { Action, Outcome, Phase } from '../navigation'
-import { INPUT_WINDOW_MS, judgeInput } from '../game'
+import type { Room } from '../lobby'
 import './GamePanel.css'
 
-type Props = {
-  phase: Phase | null
-  outcome: Outcome | null
-  active: boolean
-  onAction: (action: Action) => void
-  onRecord: (milliseconds: number | null) => void
-  onResult: () => void
-}
+type Props = { room: Room; active: boolean; onTap: () => void }
 
-export default function GamePanel({
-  phase,
-  outcome,
-  active,
-  onAction,
-  onRecord,
-  onResult,
-}: Props) {
+export default function GamePanel({ room, active, onTap }: Props) {
   const arena = useRef<HTMLElement>(null)
-  const signalAt = useRef<number | null>(null)
   const accepted = useRef(false)
-  const [reactionMs, setReactionMs] = useState<number | null>(null)
-  const [interrupted, setInterrupted] = useState(false)
-  const finished = phase === 'submitted' || phase === 'settling'
-  const cut = finished && outcome === 'success'
-
+  const [pending, setPending] = useState(false)
+  const outcome = room.input?.outcome
+  const reactionMs = room.input?.reactionMs ?? null
+  const phase = room.input ? 'submitted' : room.phase
+  const cut = outcome === 'success'
   useLayoutEffect(() => {
-    if (phase === 'signal') signalAt.current = performance.now()
-    if (phase === 'ready') {
-      signalAt.current = null
-      accepted.current = false
-      arena.current?.focus({ preventScroll: true })
-    }
-  }, [phase])
-
+    arena.current?.focus({ preventScroll: true })
+  }, [])
   useEffect(() => {
-    if (!active) return
-    const delay =
-      phase === 'ready'
-        ? 2000 + Math.random() * 3000
-        : phase === 'signal'
-          ? INPUT_WINDOW_MS
-          : phase === 'submitted'
-            ? 1300
-            : null
-    if (delay === null) return
-    const timer = window.setTimeout(() => {
-      onAction(
-        phase === 'ready'
-          ? 'signal'
-          : phase === 'signal'
-            ? 'timeout'
-            : 'settle',
-      )
-    }, delay)
-    return () => window.clearTimeout(timer)
-  }, [phase, active, onAction])
-
-  useEffect(() => {
-    if (phase !== 'ready' && phase !== 'signal') return
-    function interrupt() {
-      accepted.current = true
-      setInterrupted(true)
-      onAction('interrupt')
-    }
-    if (!active || document.hidden) {
-      interrupt()
+    if (!active || room.input || !['ready', 'signal'].includes(room.phase))
       return
-    }
-    function visibility() {
-      if (document.hidden) interrupt()
-    }
     function input() {
       if (accepted.current || document.hidden) return
       accepted.current = true
-      const record = judgeInput(signalAt.current, performance.now())
-      setReactionMs(record.reactionMs)
-      onRecord(record.reactionMs)
-      onAction(record.outcome === 'no-record' ? 'timeout' : 'tap')
+      setPending(true)
+      onTap()
     }
     function isControl(target: EventTarget | null) {
       return (
@@ -112,42 +54,39 @@ export default function GamePanel({
     }
     window.addEventListener('pointerdown', pointer)
     window.addEventListener('keydown', keyboard)
-    document.addEventListener('visibilitychange', visibility)
     return () => {
       window.removeEventListener('pointerdown', pointer)
       window.removeEventListener('keydown', keyboard)
-      document.removeEventListener('visibilitychange', visibility)
     }
-  }, [phase, active, onAction, onRecord])
-
+  }, [room.phase, room.input, active, onTap])
   const title =
-    phase === 'waiting'
-      ? '一瞬に、集中。'
-      : phase === 'ready'
-        ? '構え'
-        : phase === 'signal'
-          ? '!'
-          : cut
-            ? '一閃'
-            : outcome === 'flying'
-              ? 'お手つき'
-              : interrupted
-                ? '中断'
-                : '時間切れ'
+    outcome === 'flying'
+      ? 'お手つき'
+      : cut
+        ? '一閃'
+        : outcome === 'no-record'
+          ? '時間切れ'
+          : pending
+            ? '送信中'
+            : room.phase === 'ready'
+              ? '構え'
+              : room.phase === 'signal'
+                ? '!'
+                : '結果確認中'
   const subtitle =
-    phase === 'waiting'
-      ? '合図が出たら、ひと押し。'
-      : phase === 'ready'
-        ? 'まだ押さずに、合図を待て。'
-        : phase === 'signal'
-          ? '今だ！'
-          : cut
-            ? 'その一瞬を、記録した。'
-            : outcome === 'flying'
-              ? '早すぎた。次は「!」を待とう。'
-              : interrupted
-                ? '画面を離れたため、記録はありません。'
-                : '3秒以内の入力がありませんでした。'
+    outcome === 'flying'
+      ? '早すぎた。次は「!」を待とう。'
+      : cut
+        ? 'その一瞬を、記録した。'
+        : outcome === 'no-record'
+          ? '3秒以内の入力がありませんでした。'
+          : pending
+            ? 'サーバーの受付確認を待っています。'
+            : room.phase === 'ready'
+              ? 'まだ押さずに、合図を待て。'
+              : room.phase === 'signal'
+                ? '今だ！'
+                : '全員の結果を確認しています。'
 
   return (
     <section
@@ -264,22 +203,11 @@ export default function GamePanel({
           <kbd>SPACE</kbd>
           <span className="game-touch-copy">タップでも操作できます</span>
         </p>
-        {phase === 'waiting' ? (
-          <button
-            className="game-ready-button"
-            onClick={() => onAction('start')}
-          >
-            構える <span aria-hidden="true">→</span>
-          </button>
-        ) : phase === 'settling' ? (
-          <button className="game-ready-button" onClick={onResult}>
-            結果を見る <span aria-hidden="true">→</span>
-          </button>
-        ) : (
-          <span className="game-stage-label">
-            {phase === 'submitted' ? '記録を確認中…' : '「!」が出たら入力'}
-          </span>
-        )}
+        <span className="game-stage-label">
+          {room.input || pending || room.phase === 'settling'
+            ? '全員の結果を待っています…'
+            : '「!」が出たら入力'}
+        </span>
       </div>
     </section>
   )
