@@ -60,6 +60,7 @@ type room struct {
 }
 type Manager struct {
 	saveRetry       time.Duration
+	saveStatuses    map[string]*saveStatus
 	store           results.Store
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -79,7 +80,7 @@ func New(wait, retention time.Duration, logger *slog.Logger, stores ...results.S
 	if len(stores) > 0 {
 		store = stores[0]
 	}
-	return &Manager{saveRetry: 30 * time.Second, ctx: ctx, cancel: cancel, store: store, rooms: make(map[string]*room), users: make(map[string]*room), wait: wait, retention: retention, logger: logger}
+	return &Manager{saveStatuses: make(map[string]*saveStatus), saveRetry: 30 * time.Second, ctx: ctx, cancel: cancel, store: store, rooms: make(map[string]*room), users: make(map[string]*room), wait: wait, retention: retention, logger: logger}
 }
 func (m *Manager) Join(uid, name string, guest bool) (*Subscription, error) {
 	m.mu.Lock()

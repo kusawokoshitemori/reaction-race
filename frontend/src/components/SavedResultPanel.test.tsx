@@ -110,3 +110,21 @@ test('取得期限切れを保存済みと誤認しない', async () => {
   expect(screen.queryByText('結果を保存しました。')).toBeNull()
   expect(screen.getByRole('button', { name: '保存状態を再確認' })).toBeTruthy()
 })
+
+test('恒久的な保存失敗は未確定として表示する', async () => {
+  const fetcher = vi.fn(async () =>
+    Response.json({ persistence: 'failed', rating: null }),
+  )
+  vi.stubGlobal('fetch', fetcher)
+  render(
+    <SavedResultPanel
+      result={result}
+      standings={[]}
+      user={user}
+      onRematch={() => {}}
+    />,
+  )
+  expect(await screen.findByText(/自動再試行を終了しました/)).toBeTruthy()
+  expect(screen.getByText('レート未確定')).toBeTruthy()
+  expect(fetcher).toHaveBeenCalledOnce()
+})

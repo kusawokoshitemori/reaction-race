@@ -116,9 +116,11 @@ export default function ResultPanel({
         <p role="status">
           {result.persistence === 'saved'
             ? '結果を保存しました。'
-            : result.persistence === 'retrying'
-              ? '結果を保存できませんでした。自動で再試行しています。レートはまだ確定していません。'
-              : '結果を保存しています…'}
+            : result.persistence === 'failed'
+              ? '結果の保存に失敗しました。自動再試行を終了しました。レートは未確定です。'
+              : result.persistence === 'retrying'
+                ? '結果を保存できませんでした。自動で再試行しています。レートはまだ確定していません。'
+                : '結果を保存しています…'}
         </p>
       )}
       {serverStandings &&

@@ -15,6 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var ErrInvalidMatch = errors.New("invalid match")
+var ErrPayloadConflict = errors.New("match payload conflict")
+var ErrMissingUser = errors.New("missing rating user")
+
 type Match struct {
 	ID         string
 	RoomID     string
@@ -70,7 +74,7 @@ func validate(m Match) error {
 
 func (s Postgres) Save(ctx context.Context, m Match) (map[string]Rating, error) {
 	if err := validate(m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrInvalidMatch, err)
 	}
 	// Canonical order and explicit UID binding detect accidental match-ID reuse.
 	entries := append([]Entry(nil), m.Entries...)
@@ -105,7 +109,7 @@ func (s Postgres) Save(ctx context.Context, m Match) (map[string]Rating, error) 
 			return nil, err
 		}
 		if existing != digest {
-			return nil, errors.New("match payload conflict")
+			return nil, ErrPayloadConflict
 		}
 		return readRatings(ctx, tx, m.ID)
 	}
@@ -122,6 +126,9 @@ func (s Postgres) Save(ctx context.Context, m Match) (map[string]Rating, error) 
 	for _, uid := range uids {
 		var value int
 		if err = tx.QueryRow(ctx, `SELECT rating FROM users WHERE firebase_uid=$1 FOR UPDATE`, uid).Scan(&value); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrMissingUser
+			}
 			return nil, fmt.Errorf("lock rating: %w", err)
 		}
 		byUser[uid] = value

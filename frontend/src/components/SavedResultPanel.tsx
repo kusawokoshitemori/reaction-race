@@ -19,7 +19,12 @@ export default function SavedResultPanel({
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
-    if (!result.matchId || result.persistence === 'saved') return
+    if (
+      !result.matchId ||
+      result.persistence === 'saved' ||
+      result.persistence === 'failed'
+    )
+      return
     const abort = new AbortController()
     let disposed = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -58,6 +63,7 @@ export default function SavedResultPanel({
           !('rating' in data) ||
           (data.persistence !== 'pending' &&
             data.persistence !== 'retrying' &&
+            data.persistence !== 'failed' &&
             data.persistence !== 'saved') ||
           (data.rating !== null && !isRating(data.rating))
         )
@@ -74,7 +80,8 @@ export default function SavedResultPanel({
           persistence: data.persistence,
           rating: data.persistence === 'saved' ? data.rating : null,
         })
-        if (data.persistence === 'saved') return
+        if (data.persistence === 'saved' || data.persistence === 'failed')
+          return
       } catch {
         if (disposed) return
         setError(
