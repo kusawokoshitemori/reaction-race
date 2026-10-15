@@ -65,3 +65,5 @@ TestSocketLatencyCorrectionでは実際のローカルWebSocket接続に、Pong�
 - PostgreSQL結合テストはTEST_DATABASE_URL未設定によりスキップ（今回DB変更なし）。
 - Node 24.15.0: `npm ci` と `npm run check` 成功。フロント78テスト、Prettier、Oxlint、型チェック、Viteビルド。
 - 試合進行の既存結合テストは、試合後の計測中も両クライアントが並行して通知を受信し、Pingに応答する形へ変更。
+
+Pong受信は標本の採否にかかわらず生存確認として扱う。結果一覧は順位あり→参考記録→フライング・未入力の順。参考記録にはラベルを表示する。RTT詳細は本人のinputとサーバーログに限定し、共有resultsには配信しない。BOTの計測ログは出力しない。

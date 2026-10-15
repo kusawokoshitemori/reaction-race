@@ -125,3 +125,31 @@ test('補正済みと参考記録の表示を区別する', () => {
   expect(screen.getByText('参考記録')).toBeTruthy()
   expect(screen.getByText('補正できないため順位対象外')).toBeTruthy()
 })
+
+test('順位対象外の参加者には参考記録ラベルを表示する', () => {
+  render(
+    <ResultPanel
+      result={{
+        participants: 1,
+        rating: null,
+        outcome: 'success',
+        rank: null,
+        reactionMs: 150,
+        measurement: 'unavailable',
+      }}
+      standings={[
+        {
+          id: 'p',
+          name: '参考プレイヤー',
+          isYou: true,
+          outcome: 'success',
+          rank: null,
+          reactionMs: 150,
+          measurement: 'unavailable',
+        },
+      ]}
+      onRematch={() => {}}
+    />,
+  )
+  expect(screen.getByText('参考記録（順位対象外）')).toBeTruthy()
+})
