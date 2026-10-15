@@ -183,6 +183,9 @@ export default function ResultPanel({
                       <>
                         {entry.reactionMs}
                         <small> ms</small>
+                        {entry.rank === null && (
+                          <small>参考記録（順位対象外）</small>
+                        )}
                       </>
                     ) : (
                       <span className="match-no-record">

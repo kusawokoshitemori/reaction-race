@@ -133,6 +133,11 @@ func (m *Manager) publish(r *room) {
 		}
 		if r.phase == "finished" {
 			snapshot.Results = append([]Input(nil), r.match.results...)
+			for i := range snapshot.Results {
+				snapshot.Results[i].RawReactionMs = nil
+				snapshot.Results[i].CorrectionMs = 0
+				snapshot.Results[i].ReceivedAt = 0
+			}
 		}
 	}
 	for _, p := range r.members {

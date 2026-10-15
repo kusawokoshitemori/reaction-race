@@ -38,17 +38,18 @@ test('補正後の時間と同順位をサーバーから引き継ぎ、参考�
     roomId: 'r',
     matchId: 'm',
     phase: 'finished',
-    capacity: 3,
+    capacity: 4,
     you: 'b',
     deadline: 4000,
     serverTime: 6000,
-    participants: ['a', 'b', 'c'].map((id) => ({
+    participants: ['a', 'b', 'c', 'd'].map((id) => ({
       id,
       name: id,
       bot: false,
       guest: true,
     })),
     results: [
+      { participantId: 'd', outcome: 'flying', reactionMs: null },
       {
         participantId: 'c',
         outcome: 'success',
@@ -83,6 +84,6 @@ test('補正後の時間と同順位をサーバーから引き継ぎ、参考�
     measurement: 'corrected',
     rating: null,
   })
-  expect(standings.map((entry) => entry.id)).toEqual(['a', 'b', 'c'])
-  expect(standings.map((entry) => entry.rank)).toEqual([1, 1, null])
+  expect(standings.map((entry) => entry.id)).toEqual(['a', 'b', 'c', 'd'])
+  expect(standings.map((entry) => entry.rank)).toEqual([1, 1, null, null])
 })
