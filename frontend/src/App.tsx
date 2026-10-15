@@ -16,6 +16,7 @@ import ResultPanel from './components/ResultPanel'
 import LobbyPanel from './components/LobbyPanel'
 import { serverResult } from './result'
 import type { Room } from './lobby'
+import { readRecovery, saveRecovery } from './recovery'
 import { demoRanking } from './ranking'
 import './App.css'
 
@@ -145,8 +146,13 @@ export default function App() {
     if (identity.profile) {
       act('logout')
       act(identity.profile.guest ? 'guest' : 'login')
-      const destination =
-        window.location.hash === '#/auth' || !window.location.hash
+      const recovering =
+        ['#/game', '#/result'].includes(window.location.hash) &&
+        readRecovery(identity.profile.uid) !== null
+      if (recovering) act('join')
+      const destination = recovering
+        ? '/game'
+        : window.location.hash === '#/auth' || !window.location.hash
           ? '/'
           : resolveRoute(window.location.hash, sessionRef.current).route
       setRoute(destination)
@@ -259,7 +265,10 @@ export default function App() {
             <section className="start-actions" aria-label="ゲームへの参加">
               <button
                 className="start-button"
-                onClick={() => act('join', '/game')}
+                onClick={() => {
+                  if (identity.user) saveRecovery(identity.user.uid, null)
+                  act('join', '/game')
+                }}
               >
                 ゲーム開始 <span aria-hidden="true">→</span>
               </button>
@@ -285,7 +294,10 @@ export default function App() {
             <ResultPanel
               result={match.result}
               standings={match.standings}
-              onRematch={() => act('join', '/game')}
+              onRematch={() => {
+                if (identity.user) saveRecovery(identity.user.uid, null)
+                act('join', '/game')
+              }}
             />
           )}
           {route === '/auth' &&

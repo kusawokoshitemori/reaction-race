@@ -96,8 +96,8 @@ func TestDeadlineBotsAndReconnect(t *testing.T) {
 	}
 	m.Leave(resumed, true)
 	fresh := join(t, m, "a")
-	if receive(t, fresh).RoomID == locked.RoomID {
-		t.Fatal("explicit leave did not release identity")
+	if receive(t, fresh).RoomID != locked.RoomID {
+		t.Fatal("active match membership was lost")
 	}
 }
 func TestWaitingLeaveAndCleanup(t *testing.T) {
@@ -139,12 +139,12 @@ func TestConcurrentJoinsAndLeaves(t *testing.T) {
 		go func(s *Subscription) { defer wg.Done(); m.Leave(s, true) }(s)
 	}
 	wg.Wait()
-	if len(m.users) != 0 {
-		t.Fatal("identity leak")
+	if len(m.users) != 200 {
+		t.Fatal("frozen participants were not retained")
 	}
 	m.Close()
-	if len(m.rooms) != 0 {
-		t.Fatal("room leak")
+	if len(m.rooms) != 0 || len(m.users) != 0 {
+		t.Fatal("room or identity leak")
 	}
 	if _, e := m.Join("new", "new", true); e != ErrUnavailable {
 		t.Fatal("closed manager accepted join")
